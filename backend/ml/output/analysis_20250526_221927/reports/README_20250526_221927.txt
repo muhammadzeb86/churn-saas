@@ -1,0 +1,90 @@
+TELCO CUSTOMER CHURN ANALYSIS
+==============================
+
+Analysis Generated: 2025-05-26 22:19:27
+
+PROCESSING SUMMARY
+--------------------
+1. Data Cleaning:
+   - Handled missing values in TotalCharges
+   - Converted categorical columns to proper dtypes
+   - Validated data integrity
+
+2. Memory Optimization:
+   - Final dataset size: 6.51 MB
+   - Converted numeric columns to smallest possible dtypes
+   - Optimized categorical columns
+
+3. Visualizations Generated:
+   - Churn distribution plot
+   - Tenure distribution histogram
+   - Charges comparison boxplot
+   - Feature correlation heatmap
+
+COLUMN DESCRIPTIONS
+--------------------
+customerID:
+   - Type: object
+   - Unique values: 7043
+gender:
+   - Type: object
+   - Unique values: 2
+SeniorCitizen:
+   - Type: int64
+   - Unique values: 2
+Partner:
+   - Type: object
+   - Unique values: 2
+Dependents:
+   - Type: object
+   - Unique values: 2
+tenure:
+   - Type: int64
+   - Unique values: 73
+PhoneService:
+   - Type: object
+   - Unique values: 2
+MultipleLines:
+   - Type: object
+   - Unique values: 3
+InternetService:
+   - Type: object
+   - Unique values: 3
+OnlineSecurity:
+   - Type: object
+   - Unique values: 3
+OnlineBackup:
+   - Type: object
+   - Unique values: 3
+DeviceProtection:
+   - Type: object
+   - Unique values: 3
+TechSupport:
+   - Type: object
+   - Unique values: 3
+StreamingTV:
+   - Type: object
+   - Unique values: 3
+StreamingMovies:
+   - Type: object
+   - Unique values: 3
+Contract:
+   - Type: object
+   - Unique values: 3
+PaperlessBilling:
+   - Type: object
+   - Unique values: 2
+PaymentMethod:
+   - Type: object
+   - Unique values: 4
+MonthlyCharges:
+   - Type: float64
+   - Unique values: 1585
+TotalCharges:
+   - Type: float64
+   - Unique values: 6531
+Churn:
+   - Type: object
+   - Unique values: 2
+   - No: 73.5%
+   - Yes: 26.5%

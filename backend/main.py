@@ -1,11 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 from sqlalchemy.exc import IntegrityError
 from database import get_db, init_db
-from models import User
-from schemas import UserCreate, UserResponse
+from models import User, Upload
+from schemas import UserCreate, UserResponse, UploadResponse
+from utils import validate_csv_file, save_upload_file
 from typing import List
 
 app = FastAPI(title="Churn SaaS API")
@@ -67,6 +68,48 @@ async def get_users(db: AsyncSession = Depends(get_db)):
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred while fetching users: {str(e)}"
+        )
+
+@app.post("/upload_csv", response_model=UploadResponse)
+async def upload_csv(
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        # Validate user exists
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Validate file
+        validate_csv_file(file)
+        
+        # Save file
+        file_path = await save_upload_file(file, user_id)
+        
+        # Create upload record
+        upload = Upload(
+            filename=file_path,
+            user_id=user_id,
+            status="pending"
+        )
+        
+        # Save to database
+        db.add(upload)
+        await db.commit()
+        await db.refresh(upload)
+        
+        return upload
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while processing the upload: {str(e)}"
         )
 
 if __name__ == "__main__":

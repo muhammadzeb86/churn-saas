@@ -1,0 +1,133 @@
+
+TELCO CUSTOMER CHURN - EDA REPORT
+========================================
+1. Churn Distribution
+--------------------
+
+Raw Counts:
+No: 5,174
+Yes: 1,869
+
+Percentages:
+No: 73.46%
+Yes: 26.54%
+
+2. Numeric Features Statistics
+--------------------
+
+tenure:
+Mean: 32.37
+Min: 0.00
+Max: 72.00
+25th Percentile: 9.00
+Median: 29.00
+75th Percentile: 55.00
+
+MonthlyCharges:
+Mean: 64.76
+Min: 18.25
+Max: 118.75
+25th Percentile: 35.50
+Median: 70.35
+75th Percentile: 89.85
+
+TotalCharges:
+Mean: 2,281.92
+Min: 18.80
+Max: 8,684.80
+25th Percentile: 402.22
+Median: 1,397.48
+75th Percentile: 3,786.60
+
+3. Categorical Features Analysis
+--------------------
+
+Unique Values per Category:
+gender: 2 unique values
+Partner: 2 unique values
+Dependents: 2 unique values
+PhoneService: 2 unique values
+MultipleLines: 3 unique values
+InternetService: 3 unique values
+OnlineSecurity: 3 unique values
+OnlineBackup: 3 unique values
+DeviceProtection: 3 unique values
+TechSupport: 3 unique values
+StreamingTV: 3 unique values
+StreamingMovies: 3 unique values
+Contract: 3 unique values
+PaperlessBilling: 2 unique values
+PaymentMethod: 4 unique values
+
+Churn Rates by Category:
+
+gender:
+Female: 26.92% churn rate
+Male: 26.16% churn rate
+
+Partner:
+No: 32.96% churn rate
+Yes: 19.66% churn rate
+
+Dependents:
+No: 31.28% churn rate
+Yes: 15.45% churn rate
+
+PhoneService:
+No: 24.93% churn rate
+Yes: 26.71% churn rate
+
+MultipleLines:
+No: 25.04% churn rate
+No phone service: 24.93% churn rate
+Yes: 28.61% churn rate
+
+InternetService:
+DSL: 18.96% churn rate
+Fiber optic: 41.89% churn rate
+No: 7.40% churn rate
+
+OnlineSecurity:
+No: 41.77% churn rate
+No internet service: 7.40% churn rate
+Yes: 14.61% churn rate
+
+OnlineBackup:
+No: 39.93% churn rate
+No internet service: 7.40% churn rate
+Yes: 21.53% churn rate
+
+DeviceProtection:
+No: 39.13% churn rate
+No internet service: 7.40% churn rate
+Yes: 22.50% churn rate
+
+TechSupport:
+No: 41.64% churn rate
+No internet service: 7.40% churn rate
+Yes: 15.17% churn rate
+
+StreamingTV:
+No: 33.52% churn rate
+No internet service: 7.40% churn rate
+Yes: 30.07% churn rate
+
+StreamingMovies:
+No: 33.68% churn rate
+No internet service: 7.40% churn rate
+Yes: 29.94% churn rate
+
+Contract:
+Month-to-month: 42.71% churn rate
+One year: 11.27% churn rate
+Two year: 2.83% churn rate
+
+PaperlessBilling:
+No: 16.33% churn rate
+Yes: 33.57% churn rate
+
+PaymentMethod:
+Bank transfer (automatic): 16.71% churn rate
+Credit card (automatic): 15.24% churn rate
+Electronic check: 45.29% churn rate
+Mailed check: 19.11% churn rate

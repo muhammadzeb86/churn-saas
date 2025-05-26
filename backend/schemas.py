@@ -12,4 +12,14 @@ class UserResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        from_attributes = True  # Enables ORM mode for Pydantic 
+        from_attributes = True  # Enables ORM mode for Pydantic
+
+class UploadResponse(BaseModel):
+    id: int
+    filename: str
+    status: str
+    upload_time: datetime
+    user_id: int
+
+    class Config:
+        from_attributes = True 
