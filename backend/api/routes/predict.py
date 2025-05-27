@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 import pandas as pd
@@ -78,6 +79,43 @@ async def predict_churn(upload_id: int, db: Session = Depends(get_db)) -> Dict[s
             "sample_predictions": sample_predictions
         }
     
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/download_predictions/{upload_id}")
+async def download_predictions(upload_id: int, db: Session = Depends(get_db)):
+    """
+    Download predictions for a specific upload.
+    
+    Args:
+        upload_id: ID of the uploaded file in the database
+        db: Database session
+    
+    Returns:
+        FileResponse containing the predictions CSV file
+    """
+    try:
+        # Get upload record from database
+        upload = db.query(Upload).filter(Upload.id == upload_id).first()
+        if not upload:
+            raise HTTPException(status_code=404, detail=f"Upload ID {upload_id} not found")
+            
+        # Check if predictions exist
+        predictions_path = Path("backend/ml/predictions") / f"predictions_{upload_id}.csv"
+        if not predictions_path.exists():
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Predictions file not found. Please run predictions first."
+            )
+            
+        return FileResponse(
+            path=str(predictions_path),
+            filename=f"churn_predictions_{upload_id}.csv",
+            media_type="text/csv"
+        )
+            
     except HTTPException:
         raise
     except Exception as e:
