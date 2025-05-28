@@ -8,17 +8,17 @@ from pathlib import Path
 from ..database import get_db
 from ..models.upload import Upload
 from ..schemas.predict import PredictionResponse
-from ...ml.predict import ChurnPredictor
+from ...ml.predict import RetentionPredictor
 
 router = APIRouter()
 
 # Initialize the predictor
-predictor = ChurnPredictor()
+predictor = RetentionPredictor()
 
-@router.post("/predict_churn", response_model=PredictionResponse)
-async def predict_churn(upload_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+@router.post("/predict_retention", response_model=PredictionResponse)
+async def predict_retention(upload_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
-    Make churn predictions on uploaded data.
+    Make retention predictions on uploaded data.
     
     Args:
         upload_id: ID of the uploaded file in the database

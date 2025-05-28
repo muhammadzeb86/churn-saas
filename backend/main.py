@@ -8,8 +8,15 @@ from models import User, Upload
 from schemas import UserCreate, UserResponse, UploadResponse
 from utils import validate_csv_file, save_upload_file
 from typing import List
+from api.routes import auth, upload, predict, powerbi
 
-app = FastAPI(title="Churn SaaS API")
+app = FastAPI(title="RetainWise Analytics API")
+
+# Include routers
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(upload.router, prefix="/upload", tags=["upload"])
+app.include_router(predict.router, prefix="/predict", tags=["predict"])
+app.include_router(powerbi.router, prefix="/powerbi", tags=["powerbi"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -17,7 +24,7 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    return JSONResponse(content={"message": "Churn SaaS backend is running"})
+    return JSONResponse(content={"message": "RetainWise Analytics backend is running"})
 
 @app.get("/db-test")
 async def test_db(db: AsyncSession = Depends(get_db)):

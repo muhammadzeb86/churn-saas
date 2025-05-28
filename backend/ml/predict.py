@@ -13,7 +13,7 @@ from sklearn.linear_model import LogisticRegression
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class ChurnPredictor:
+class RetentionPredictor:
     def __init__(self):
         """Initialize the predictor with paths and model."""
         self.base_path = Path(__file__).parent
@@ -30,7 +30,7 @@ class ChurnPredictor:
     def _load_latest_model(self):
         """Load the most recent model from the models directory."""
         try:
-            model_files = list(self.model_dir.glob('best_churn_model_*.pkl'))
+            model_files = list(self.model_dir.glob('best_retention_model_*.pkl'))
             if not model_files:
                 raise FileNotFoundError("No model files found in models directory")
             
@@ -117,7 +117,7 @@ class ChurnPredictor:
                     feature = feature_names[idx]
                     importance = importances[idx]
                     impact = "increases" if importance > 0 else "decreases"
-                    features.append(f"{feature} {impact} risk by {abs(importance):.3f}")
+                    features.append(f"{feature} {impact} retention by {abs(importance):.3f}")
                 
                 top_features.append("; ".join(features))
             
@@ -142,15 +142,17 @@ class ChurnPredictor:
             # Make predictions
             logger.info("Making predictions...")
             y_pred_proba = self.model.predict_proba(X_scaled)[:, 1]
-            y_pred = (y_pred_proba >= 0.5).astype(int)
+            # Convert churn probability to retention probability
+            retention_proba = 1 - y_pred_proba
+            retention_pred = (retention_proba >= 0.5).astype(int)
             
             # Generate feature importance explanations
             top_features = self.get_feature_importance_explanations(X_scaled, feature_names)
             
             # Create results dataframe
             results = pd.DataFrame({
-                'churn_probability': y_pred_proba,
-                'churn_prediction': y_pred,
+                'retention_probability': retention_proba,
+                'retention_prediction': retention_pred,
                 'feature_importance': top_features
             })
             
