@@ -1,0 +1,37 @@
+{
+  "family": "retainwise-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::908226940571:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "retainwise-backend",
+      "image": "908226940571.dkr.ecr.us-east-1.amazonaws.com/retainwise-backend:latest",
+      "portMappings": [{"containerPort": 8000, "protocol": "tcp"}],
+      "environment": [
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql+asyncpg://retainwiseuser:RetainWise2024@retainwise-db.co9icy24a1d9.us-east-1.rds.amazonaws.com:5432/retainwisedb"
+        },
+        {
+          "name": "POWERBI_WORKSPACE_ID",
+          "value": "cb604b66-17ab-4831-b8b9-2e718c5cf3f5"
+        },
+        {
+          "name": "POWERBI_REPORT_ID",
+          "value": "cda60607-7c02-47c5-a552-2b7c08a0d89c"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/retainwise-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+} 

@@ -3,18 +3,16 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 from sqlalchemy.exc import IntegrityError
-from database import get_db, init_db
-from models import User, Upload
-from schemas import UserCreate, UserResponse, UploadResponse
-from utils import validate_csv_file, save_upload_file
+from backend.api.database import get_db, init_db
+from backend.models import User, Upload
+from backend.schemas import UserCreate, UserResponse, UploadResponse
+from backend.utils import validate_csv_file, save_upload_file
 from typing import List
-from api.routes import auth, upload, predict, powerbi
+from backend.api.routes import predict, powerbi
 
 app = FastAPI(title="RetainWise Analytics API")
 
 # Include routers
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(upload.router, prefix="/upload", tags=["upload"])
 app.include_router(predict.router, prefix="/predict", tags=["predict"])
 app.include_router(powerbi.router, prefix="/powerbi", tags=["powerbi"])
 

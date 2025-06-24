@@ -1,34 +1,26 @@
-# Use Python 3.11 slim image as base
 FROM python:3.11-slim
 
-# Set working directory
+# Set working dir to /app
 WORKDIR /app
 
-# Set environment variables
+# Make imports work from /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Install OS deps
+RUN apt-get update \
+ && apt-get install -y build-essential \
+ && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy only requirements, install them
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir email-validator
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir email-validator
+# Copy your entire backend folder contents into /app
+COPY . .
 
-# Copy the backend code
-COPY backend/ ./backend/
-
-# Set the working directory to the backend folder
-WORKDIR /app/backend
-
-# Expose the port the app runs on
+# Expose & launch
 EXPOSE 8000
-
-# Command to run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

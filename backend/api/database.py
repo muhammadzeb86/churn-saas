@@ -42,7 +42,7 @@ async def get_db() -> AsyncSession:
 async def init_db():
     async with engine.begin() as conn:
         # Import all models here to ensure they are registered with Base
-        from models import User  # noqa
+        from backend.models import User  # noqa
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
@@ -56,4 +56,4 @@ async def get_items(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Item))
     items = result.scalars().all()
     return items
-"""
+""" 

@@ -21,8 +21,14 @@ class RetentionPredictor:
         self.predictions_dir = self.base_path / 'predictions'
         self.predictions_dir.mkdir(exist_ok=True)
         
-        # Load the latest model
-        self.model = self._load_latest_model()
+        # Try to load the latest model, but don't fail if none exists
+        try:
+            self.model = self._load_latest_model()
+            self.model_available = True
+        except FileNotFoundError:
+            logger.warning("No model files found. Predictor will not be functional until a model is available.")
+            self.model = None
+            self.model_available = False
         
         # Initialize scaler
         self.scaler = StandardScaler()
@@ -129,6 +135,9 @@ class RetentionPredictor:
     
     def predict(self, df):
         """Make predictions on the input data."""
+        if not self.model_available:
+            raise ValueError("No model available for predictions. Please train and save a model first.")
+            
         try:
             # Store customerID if present
             customer_ids = df['customerID'].copy() if 'customerID' in df.columns else None
