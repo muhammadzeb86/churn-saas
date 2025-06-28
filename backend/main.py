@@ -1,20 +1,20 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 from sqlalchemy.exc import IntegrityError
 from backend.api.database import get_db, init_db
-from backend.models import User, Upload
-from backend.schemas import UserCreate, UserResponse, UploadResponse
-from backend.utils import validate_csv_file, save_upload_file
+from backend.models import User
+from backend.schemas import UserCreate, UserResponse
 from typing import List
-from backend.api.routes import predict, powerbi
+from backend.api.routes import predict, powerbi, upload
 
 app = FastAPI(title="RetainWise Analytics API")
 
 # Include routers
 app.include_router(predict.router, prefix="/predict", tags=["predict"])
 app.include_router(powerbi.router, prefix="/powerbi", tags=["powerbi"])
+app.include_router(upload.router, tags=["upload"])  # Upload routes are at /upload/*
 
 @app.on_event("startup")
 async def startup_event():
@@ -23,6 +23,11 @@ async def startup_event():
 @app.get("/")
 async def root():
     return JSONResponse(content={"message": "RetainWise Analytics backend is running"})
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for load balancer"""
+    return JSONResponse(content={"status": "healthy", "message": "RetainWise Analytics backend is running"})
 
 @app.get("/db-test")
 async def test_db(db: AsyncSession = Depends(get_db)):
@@ -73,48 +78,6 @@ async def get_users(db: AsyncSession = Depends(get_db)):
         raise HTTPException(
             status_code=500,
             detail=f"An error occurred while fetching users: {str(e)}"
-        )
-
-@app.post("/upload_csv", response_model=UploadResponse)
-async def upload_csv(
-    file: UploadFile = File(...),
-    user_id: int = Form(...),
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        # Validate user exists
-        result = await db.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        # Validate file
-        validate_csv_file(file)
-        
-        # Save file
-        file_path = await save_upload_file(file, user_id)
-        
-        # Create upload record
-        upload = Upload(
-            filename=file_path,
-            user_id=user_id,
-            status="pending"
-        )
-        
-        # Save to database
-        db.add(upload)
-        await db.commit()
-        await db.refresh(upload)
-        
-        return upload
-    except HTTPException:
-        await db.rollback()
-        raise
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while processing the upload: {str(e)}"
         )
 
 if __name__ == "__main__":

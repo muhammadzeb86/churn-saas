@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, DateTime, Index, ForeignKey
+from sqlalchemy import String, Integer, DateTime, Index, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.api.database import Base
 
@@ -31,6 +31,10 @@ class Upload(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    # S3 object key for the uploaded file
+    s3_object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # File size in bytes
+    file_size: Mapped[int] = mapped_column(Integer, nullable=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     upload_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -40,7 +44,7 @@ class Upload(Base):
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="pending"
+        default="uploaded"  # Changed from "pending" to "uploaded" since we're uploading directly
     )
 
     # Relationship to user
