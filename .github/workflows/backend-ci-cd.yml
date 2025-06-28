@@ -1,0 +1,208 @@
+name: Backend CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'infra/**'
+      - '.github/workflows/backend-ci-cd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+      - 'infra/**'
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: retainwise-backend
+  ECS_CLUSTER: retainwise-cluster
+  ECS_SERVICE: retainwise-service
+  ECS_TASK_DEFINITION: retainwise-backend
+
+jobs:
+  # Job 1: Build and Test Backend
+  build-and-test:
+    name: Build and Test Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Python dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        
+    - name: Run backend tests (if any)
+      run: |
+        cd backend
+        # Add your test commands here when you have tests
+        echo "No tests configured yet - skipping test step"
+        
+    - name: Build Docker image
+      run: |
+        cd backend
+        docker build -t $ECR_REPOSITORY:${{ github.sha }} .
+        docker build -t $ECR_REPOSITORY:latest .
+        
+    - name: Test Docker image locally
+      run: |
+        # Quick test to ensure the image builds and can start
+        docker run --rm -d --name test-container $ECR_REPOSITORY:latest
+        sleep 10
+        docker logs test-container
+        docker stop test-container
+
+  # Job 2: Deploy to AWS (only on main branch)
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      
+    - name: Build, tag, and push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        cd backend
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+    - name: Check for infrastructure changes
+      id: check-infra
+      run: |
+        # Check if any files in infra/ directory were modified
+        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^infra/"; then
+          echo "infra_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "infra_changed=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Setup Terraform
+      if: steps.check-infra.outputs.infra_changed == 'true'
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "1.5.0"
+        
+    - name: Terraform Init
+      if: steps.check-infra.outputs.infra_changed == 'true'
+      run: |
+        cd infra
+        terraform init
+        
+    - name: Terraform Plan
+      if: steps.check-infra.outputs.infra_changed == 'true'
+      run: |
+        cd infra
+        terraform plan -out=tfplan
+        
+    - name: Terraform Apply
+      if: steps.check-infra.outputs.infra_changed == 'true'
+      run: |
+        cd infra
+        terraform apply -auto-approve tfplan
+        
+    - name: Download task definition
+      run: |
+        aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION \
+        --query taskDefinition > task-definition.json
+        
+    - name: Update ECS task definition
+      run: |
+        # Update the image URI in the task definition
+        ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+        sed -i 's|"image": ".*"|"image": "'$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}'"|g' task-definition.json
+        
+    - name: Register new task definition
+      run: |
+        aws ecs register-task-definition --cli-input-json file://task-definition.json
+        
+    - name: Update ECS service
+      run: |
+        aws ecs update-service \
+          --cluster $ECS_CLUSTER \
+          --service $ECS_SERVICE \
+          --task-definition $ECS_TASK_DEFINITION \
+          --force-new-deployment
+          
+    - name: Wait for service to stabilize
+      run: |
+        aws ecs wait services-stable \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE
+          
+    - name: Get service status
+      run: |
+        aws ecs describe-services \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE \
+          --query 'services[0].{Status:status,RunningCount:runningCount,DesiredCount:desiredCount}' \
+          --output table
+          
+    - name: Get load balancer URL
+      run: |
+        # Get the load balancer DNS name from Terraform outputs or AWS CLI
+        if [ -f "infra/terraform.tfstate" ]; then
+          echo "Load Balancer URL: $(cd infra && terraform output -raw load_balancer_dns)"
+        else
+          echo "Load Balancer URL: Check AWS Console for ALB DNS name"
+        fi
+
+  # Job 3: Health Check (optional)
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Wait for application to be ready
+      run: |
+        # Wait a bit for the application to fully start
+        sleep 60
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Get load balancer URL and test health endpoint
+      run: |
+        # Get ALB DNS name from AWS CLI
+        ALB_DNS=$(aws elbv2 describe-load-balancers \
+          --query 'LoadBalancers[?contains(LoadBalancerName, `retainwise`)].DNSName' \
+          --output text)
+        
+        if [ ! -z "$ALB_DNS" ]; then
+          echo "Testing health endpoint at: http://$ALB_DNS/health"
+          curl -f http://$ALB_DNS/health || echo "Health check failed"
+        else
+          echo "Could not find load balancer DNS name"
+        fi 
