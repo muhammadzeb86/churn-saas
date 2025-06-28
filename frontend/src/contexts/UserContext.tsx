@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useUser, useAuth } from '@clerk/clerk-react';
-import axios from 'axios';
+import { useUser } from '@clerk/clerk-react';
+import { authAPI } from '../services/api';
 
 interface DBUser {
   id: number;
@@ -20,7 +20,6 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoaded, isSignedIn } = useUser();
-  const { getToken } = useAuth();
   const [dbUser, setDBUser] = useState<DBUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,15 +32,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const token = await getToken();
-        const response = await axios.post('http://localhost:8000/auth/sync_user', {
+        const response = await authAPI.syncUser({
           clerk_user_id: user.id,
           email: user.primaryEmailAddress?.emailAddress,
           full_name: `${user.firstName} ${user.lastName}`.trim()
-        }, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
         });
 
         setDBUser(response.data);
@@ -55,7 +49,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     syncUser();
-  }, [isLoaded, isSignedIn, user, getToken]);
+  }, [isLoaded, isSignedIn, user]);
 
   return (
     <UserContext.Provider value={{ dbUser, setDBUser, isLoading, error }}>

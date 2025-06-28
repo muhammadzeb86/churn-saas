@@ -2,11 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { PowerBIEmbed } from 'powerbi-client-react';
 import * as models from 'powerbi-client';
 import { Report } from 'powerbi-client';
-import axios from 'axios';
 import { useUserContext } from '../contexts/UserContext';
-import { useAuth } from '@clerk/clerk-react';
 import { useToast } from '../components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
+import { powerbiAPI } from '../services/api';
 
 interface PowerBIConfig {
   embedUrl: string;
@@ -22,7 +21,6 @@ declare global {
 
 const Dashboard: React.FC = () => {
   const { dbUser } = useUserContext();
-  const { getToken } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,12 +30,7 @@ const Dashboard: React.FC = () => {
     const fetchEmbedToken = async () => {
       try {
         setLoading(true);
-        const token = await getToken();
-        const response = await axios.get('http://localhost:8000/powerbi/embed-token', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        const response = await powerbiAPI.getEmbedToken();
         setPowerBIConfig(response.data);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load Power BI report';
@@ -55,7 +48,7 @@ const Dashboard: React.FC = () => {
     if (dbUser) {
       fetchEmbedToken();
     }
-  }, [dbUser, getToken]);
+  }, [dbUser, toast]);
 
   if (loading) {
     return (

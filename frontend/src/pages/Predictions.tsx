@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
 import { Download, FileSpreadsheet, AlertCircle, ChevronRight } from 'lucide-react';
+import { predictionsAPI } from '../services/api';
 
 interface PredictionSummary {
   id: string;
@@ -13,7 +13,6 @@ interface PredictionSummary {
 }
 
 const Predictions: React.FC = () => {
-  const { getToken } = useAuth();
   const [predictions, setPredictions] = useState<PredictionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,19 +26,8 @@ const Predictions: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const token = await getToken();
-      const response = await fetch('http://localhost:8000/predictions', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch predictions');
-      }
-
-      const data = await response.json();
-      setPredictions(data);
+      const response = await predictionsAPI.getPredictions();
+      setPredictions(response.data);
     } catch (err) {
       setError('Failed to load predictions. Please try again later.');
       console.error('Error fetching predictions:', err);
@@ -51,18 +39,9 @@ const Predictions: React.FC = () => {
   const handleDownload = async (id: string) => {
     try {
       setDownloading(id);
-      const token = await getToken();
-      const response = await fetch(`http://localhost:8000/download_predictions/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await predictionsAPI.downloadPredictions(id);
 
-      if (!response.ok) {
-        throw new Error('Failed to download predictions');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data]);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

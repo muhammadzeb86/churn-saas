@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useUser, useAuth } from '@clerk/clerk-react';
+import { useUser } from '@clerk/clerk-react';
 import { Upload as UploadIcon, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { uploadAPI } from '../services/api';
 
 interface UploadResponse {
   id: string;
@@ -11,7 +12,6 @@ interface UploadResponse {
 
 const Upload: React.FC = () => {
   const { user } = useUser();
-  const { getToken } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -25,16 +25,8 @@ const Upload: React.FC = () => {
 
   const fetchPreviousUploads = async () => {
     try {
-      const token = await getToken();
-      const response = await fetch('http://localhost:8000/uploads', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setPreviousUploads(data);
-      }
+      const response = await uploadAPI.getUploads();
+      setPreviousUploads(response.data);
     } catch (err) {
       console.error('Error fetching previous uploads:', err);
     }
@@ -76,24 +68,8 @@ const Upload: React.FC = () => {
     formData.append('user_id', user.id);
 
     try {
-      const token = await getToken();
-      const response = await fetch('http://localhost:8000/upload_csv', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Authorization': `Bearer ${token}`
-          // Don't set Content-Type - browser will set it with boundary
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Upload error:', errorData);
-        throw new Error(errorData.detail || 'Upload failed');
-      }
-
-      const data = await response.json();
-      console.log('Upload successful:', data);
+      const response = await uploadAPI.uploadCSV(formData);
+      console.log('Upload successful:', response.data);
       
       setSuccess(true);
       setFile(null);
