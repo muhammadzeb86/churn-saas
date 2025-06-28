@@ -14,8 +14,16 @@ const Header: React.FC = () => {
   return (
     <header className="h-16 bg-white border-b border-gray-200">
       <div className="h-full px-6 flex items-center justify-between">
-        <div>
+        <div className="flex items-center space-x-6">
           <h2 className="text-xl font-semibold text-gray-800">Dashboard</h2>
+          <a
+            href="https://retainwiseanalytics.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-700 hover:underline text-sm font-medium transition-colors duration-200"
+          >
+            Home
+          </a>
         </div>
         
         <div className="flex items-center space-x-4">
