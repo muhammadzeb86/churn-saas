@@ -4,6 +4,7 @@ import * as models from 'powerbi-client';
 import { Report } from 'powerbi-client';
 import axios from 'axios';
 import { useUserContext } from '../contexts/UserContext';
+import { useAuth } from '@clerk/clerk-react';
 import { useToast } from '../components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ declare global {
 
 const Dashboard: React.FC = () => {
   const { dbUser } = useUserContext();
+  const { getToken } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +32,10 @@ const Dashboard: React.FC = () => {
     const fetchEmbedToken = async () => {
       try {
         setLoading(true);
+        const token = await getToken();
         const response = await axios.get('http://localhost:8000/powerbi/embed-token', {
           headers: {
-            Authorization: `Bearer ${await dbUser?.getToken()}`
+            Authorization: `Bearer ${token}`
           }
         });
         setPowerBIConfig(response.data);
@@ -52,7 +55,7 @@ const Dashboard: React.FC = () => {
     if (dbUser) {
       fetchEmbedToken();
     }
-  }, [dbUser]);
+  }, [dbUser, getToken]);
 
   if (loading) {
     return (
