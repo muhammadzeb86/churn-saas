@@ -8,8 +8,21 @@ from backend.models import User
 from backend.schemas import UserCreate, UserResponse
 from typing import List
 from backend.api.routes import predict, powerbi, upload
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="RetainWise Analytics API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://retainwiseanalytics.com",
+        "https://www.retainwiseanalytics.com",
+        "https://app.retainwiseanalytics.com"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include routers
 app.include_router(predict.router, prefix="/predict", tags=["predict"])
