@@ -36,12 +36,12 @@ output "load_balancer_dns" {
 
 output "vpc_id" {
   description = "ID of the VPC"
-  value       = aws_vpc.main.id
+  value       = data.aws_vpc.existing.id
 }
 
 output "public_subnet_ids" {
   description = "IDs of the public subnets"
-  value       = aws_subnet.public[*].id
+  value       = [data.aws_subnet.public_1.id, data.aws_subnet.public_2.id]
 }
 
 output "private_subnet_ids" {

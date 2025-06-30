@@ -44,4 +44,11 @@ variable "ecs_desired_count" {
   description = "Number of ECS tasks to run"
   type        = number
   default     = 2
+}
+
+variable "db_password" {
+  description = "Password for the RDS database"
+  type        = string
+  default     = "RetainWise2024!"
+  sensitive   = true
 } 
