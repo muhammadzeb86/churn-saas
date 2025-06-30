@@ -37,4 +37,11 @@ htmlcov/
 .coverage
 .coverage.*
 coverage.xml
-*.cover 
+*.cover
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.zip
+*.exe 
