@@ -25,8 +25,9 @@ RUN pip install --no-cache-dir -r ./backend/requirements.txt && pip install --no
 # Copy the entire backend directory as a Python package
 COPY . ./backend/
 
-# Create __init__.py to make backend a proper Python package
-RUN touch ./backend/__init__.py
+# Create __init__.py files to make all directories proper Python packages
+RUN touch ./backend/__init__.py && \
+    find ./backend -type d -exec touch {}/__init__.py \;
 
 # Expose the port
 EXPOSE 8000

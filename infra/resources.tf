@@ -439,23 +439,26 @@ resource "aws_ecs_service" "backend" {
   }
 }
 
-resource "aws_eip" "nat" {
-  domain = "vpc"
-  tags = {
-    Name = "retainwise-nat-eip"
-  }
-}
+# NAT Gateway and EIP - COMMENTED OUT TO SAVE COSTS
+# Uncomment when you need ECS tasks to run in private subnets
 
-resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = "subnet-0d539fd1a67a870ec"
-  tags = {
-    Name = "retainwise-nat-gw"
-  }
-}
+# resource "aws_eip" "nat" {
+#   domain = "vpc"
+#   tags = {
+#     Name = "retainwise-nat-eip"
+#   }
+# }
 
-resource "aws_route" "private_nat_gateway" {
-  route_table_id         = "rtb-01bd6333a3b7b43e4"
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.main.id
-} 
+# resource "aws_nat_gateway" "main" {
+#   allocation_id = aws_eip.nat.id
+#   subnet_id     = "subnet-0d539fd1a67a870ec"
+#   tags = {
+#     Name = "retainwise-nat-gw"
+#   }
+# }
+
+# resource "aws_route" "private_nat_gateway" {
+#   route_table_id         = "rtb-01bd6333a3b7b43e4"
+#   destination_cidr_block = "0.0.0.0/0"
+#   nat_gateway_id         = aws_nat_gateway.main.id
+# } 

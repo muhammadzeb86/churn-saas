@@ -31,7 +31,13 @@ app.include_router(upload.router, tags=["upload"])  # Upload routes are at /uplo
 
 @app.on_event("startup")
 async def startup_event():
-    await init_db()
+    """Initialize database on startup - handle failures gracefully"""
+    try:
+        await init_db()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
+        print("Application will continue running, but database operations may fail")
 
 @app.get("/")
 async def root():
@@ -39,8 +45,31 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for load balancer"""
-    return JSONResponse(content={"status": "healthy", "message": "RetainWise Analytics backend is running"})
+    """Health check endpoint for load balancer - basic app health only"""
+    return {"status": "healthy", "service": "retainwise-backend"}
+
+@app.get("/health/detailed")
+async def detailed_health_check(db: AsyncSession = Depends(get_db)):
+    """Detailed health check including database connectivity"""
+    try:
+        # Test the database connection
+        result = await db.execute(text("SELECT 1"))
+        await result.fetchone()
+        return {
+            "status": "healthy", 
+            "service": "retainwise-backend",
+            "database": "connected"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "status": "unhealthy",
+                "service": "retainwise-backend", 
+                "database": "disconnected",
+                "error": str(e)
+            }
+        )
 
 @app.get("/db-test")
 async def test_db(db: AsyncSession = Depends(get_db)):
