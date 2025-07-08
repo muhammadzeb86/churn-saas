@@ -292,7 +292,7 @@ export default function Home() {
         <div className="text-center">
           <p className="text-gray-600 mb-4">Already have access?</p>
           <a
-            href="https://app.retainwiseanalytics.com"
+            href="https://app.retainwiseanalytics.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center px-6 py-3 text-lg font-semibold text-indigo-600 bg-white border-2 border-indigo-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-200 shadow-sm hover:shadow-md"
