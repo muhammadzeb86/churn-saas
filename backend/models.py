@@ -1,7 +1,7 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, DateTime, Index, ForeignKey, Text
+from sqlalchemy import String, Integer, DateTime, Index, ForeignKey, Text, Column, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from backend.api.database import Base
+from api.database import Base
 
 class User(Base):
     __tablename__ = "users"
@@ -13,6 +13,12 @@ class User(Base):
         DateTime(timezone=True), 
         nullable=False, 
         default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
     )
 
     # Relationship to uploads
@@ -46,9 +52,31 @@ class Upload(Base):
         nullable=False,
         default="uploaded"  # Changed from "pending" to "uploaded" since we're uploading directly
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
 
     # Relationship to user
     user: Mapped["User"] = relationship(back_populates="uploads")
 
     def __repr__(self) -> str:
-        return f"Upload(id={self.id}, filename={self.filename}, user_id={self.user_id}, status={self.status})" 
+        return f"Upload(id={self.id}, filename={self.filename}, user_id={self.user_id}, status={self.status})"
+
+class WaitlistEmail(Base):
+    __tablename__ = "waitlist_emails"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow
+    ) 

@@ -7,7 +7,7 @@ from backend.api.database import get_db, init_db
 from backend.models import User
 from backend.schemas import UserCreate, UserResponse
 from typing import List
-from backend.api.routes import predict, powerbi, upload
+from backend.api.routes import predict, powerbi, upload, waitlist
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="RetainWise Analytics API")
@@ -28,6 +28,7 @@ app.add_middleware(
 app.include_router(predict.router, prefix="/predict", tags=["predict"])
 app.include_router(powerbi.router, prefix="/powerbi", tags=["powerbi"])
 app.include_router(upload.router, tags=["upload"])  # Upload routes are at /upload/*
+app.include_router(waitlist.router)  # Waitlist routes are at /api/waitlist/*
 
 @app.on_event("startup")
 async def startup_event():

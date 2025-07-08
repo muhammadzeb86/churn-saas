@@ -8,7 +8,7 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import your models to ensure they are registered with SQLAlchemy
-from backend.models import Base, User, Upload
+from models import Base, User, Upload
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -33,6 +33,9 @@ def get_url():
     # Try to get from environment variable first
     database_url = os.getenv("DATABASE_URL")
     if database_url:
+        # Convert async URL to sync URL for Alembic
+        if database_url.startswith("postgresql+asyncpg://"):
+            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
         return database_url
     
     # Fall back to config file
