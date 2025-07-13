@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useMixpanel } from '../hooks/useMixpanel';
 
 // Type declarations for global analytics functions
 declare global {
@@ -17,6 +18,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [validationError, setValidationError] = useState('');
+  const { track } = useMixpanel();
 
   // Analytics helper functions
   const trackEvent = (eventName: string, parameters: Record<string, unknown> = {}) => {
@@ -54,7 +56,13 @@ export default function Home() {
       page_location: window.location.href,
       page_title: document.title,
     });
-  }, []);
+    
+    // Track with Mixpanel
+    track('Waitlist Form Viewed', {
+      page_location: window.location.href,
+      page_title: document.title,
+    });
+  }, [track]);
 
   // Email validation regex
   const validateEmail = (email: string): boolean => {
@@ -111,6 +119,12 @@ export default function Home() {
       form_location: 'hero_section',
     });
     
+    // Track with Mixpanel
+    track('Waitlist Form Submitted', {
+      email_domain: email.trim().split('@')[1],
+      form_location: 'hero_section',
+    });
+    
     setIsLoading(true);
     
     try {
@@ -136,6 +150,13 @@ export default function Home() {
         
         // Track successful submission
         trackEvent('waitlist_form_success', {
+          email_domain: email.trim().split('@')[1],
+          response_message: data.message,
+          form_location: 'hero_section',
+        });
+        
+        // Track with Mixpanel
+        track('Waitlist Form Success', {
           email_domain: email.trim().split('@')[1],
           response_message: data.message,
           form_location: 'hero_section',
