@@ -114,15 +114,17 @@ export default function Home() {
     setIsLoading(true);
     
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      console.log('Frontend: Submitting email to waitlist:', email.trim());
       
-      const response = await fetch(`${backendUrl}/api/waitlist`, {
+      const response = await fetch('/api/waitlist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email: email.trim() }),
       });
+      
+      console.log('Frontend: Response received:', response.status);
       
       const data = await response.json();
       
