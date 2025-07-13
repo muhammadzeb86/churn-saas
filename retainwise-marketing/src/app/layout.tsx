@@ -27,11 +27,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <AnalyticsScripts />
+        {/* Server-safe head content only */}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <AnalyticsScripts />
         <MixpanelInitializer />
         {children}
       </body>
