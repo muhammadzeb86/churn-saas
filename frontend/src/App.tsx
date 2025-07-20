@@ -55,7 +55,7 @@ const AppRoutes: React.FC = () => {
             <Navigate to="/dashboard" replace />
           ) : (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
-              <SignIn routing="path" path="/login" redirectUrl="/dashboard" />
+              <SignIn routing="path" path="/login" fallbackRedirectUrl="/dashboard" forceRedirectUrl="/dashboard" />
             </div>
           )
         }
@@ -67,7 +67,7 @@ const AppRoutes: React.FC = () => {
             <Navigate to="/dashboard" replace />
           ) : (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
-              <SignUp routing="path" path="/signup" redirectUrl="/dashboard" />
+              <SignUp routing="path" path="/signup" fallbackRedirectUrl="/dashboard" forceRedirectUrl="/dashboard" />
             </div>
           )
         }
