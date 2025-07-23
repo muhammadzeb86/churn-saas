@@ -28,7 +28,9 @@ const App: React.FC = () => {
   }
 
   return (
-    <ClerkProvider publishableKey={clerkKey}>
+    <ClerkProvider
+      publishableKey={clerkKey}
+    >
       <UserProvider>
         <Router>
           <AppRoutes />
@@ -61,6 +63,23 @@ const AppRoutes: React.FC = () => {
         }
       />
       <Route
+        path="/login/*"
+        element={
+          isSignedIn ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <SignIn
+                routing="path"
+                path="/login"
+                fallbackRedirectUrl="/dashboard"
+                forceRedirectUrl="/dashboard"
+              />
+            </div>
+          )
+        }
+      />
+      <Route
         path="/signup"
         element={
           isSignedIn ? (
@@ -68,6 +87,23 @@ const AppRoutes: React.FC = () => {
           ) : (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
               <SignUp routing="path" path="/signup" fallbackRedirectUrl="/dashboard" forceRedirectUrl="/dashboard" />
+            </div>
+          )
+        }
+      />
+      <Route
+        path="/signup/*"
+        element={
+          isSignedIn ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <SignUp
+                routing="path"
+                path="/signup"
+                fallbackRedirectUrl="/dashboard"
+                forceRedirectUrl="/dashboard"
+              />
             </div>
           )
         }
