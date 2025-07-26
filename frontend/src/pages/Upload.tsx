@@ -65,7 +65,7 @@ const Upload: React.FC = () => {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('user_id', user.id);
+    formData.append('user_id', parseInt(user.id).toString());
 
     try {
       const response = await uploadAPI.uploadCSV(formData);

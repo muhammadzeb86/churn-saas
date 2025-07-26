@@ -43,7 +43,7 @@ export const dataAPI = {
 
 export const uploadAPI = {
   getUploads: () => api.get('/uploads'),
-  uploadCSV: (formData: FormData) => api.post('/upload_csv', formData, {
+  uploadCSV: (formData: FormData) => api.post('/upload/csv', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
