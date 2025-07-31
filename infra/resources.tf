@@ -5,6 +5,13 @@ data "aws_availability_zones" "available" {
 
 data "aws_caller_identity" "current" {}
 
+# Archive Lambda function code
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_file = "lambda_ecs_scaling.py"
+  output_path = "lambda_ecs_scaling.zip"
+}
+
 # Use existing VPC
 data "aws_vpc" "existing" {
   id = "vpc-0c5ca9862562584d5"
@@ -391,6 +398,45 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name  = "S3_BUCKET"
           value = aws_s3_bucket.uploads.bucket
+        },
+        {
+          name  = "AWS_REGION"
+          value = "us-east-1"
+        },
+        {
+          name  = "POWERBI_WORKSPACE_ID"
+          value = "cb604b66-17ab-4831-b8b9-2e718c5cf3f5"
+        },
+        {
+          name  = "POWERBI_REPORT_ID"
+          value = "cda60607-7c02-47c5-a552-2b7c08a0d89c"
+        },
+        {
+          name  = "POWERBI_CLIENT_ID"
+          value = "d00fe407-6d4a-4d15-8213-63b898c0e762"
+        },
+        {
+          name  = "POWERBI_TENANT_ID"
+          value = "2830aab0-cdb4-4a6b-82e4-8d7856122010"
+        },
+        {
+          name  = "ENVIRONMENT"
+          value = "production"
+        },
+        {
+          name  = "LOG_LEVEL"
+          value = "INFO"
+        }
+      ]
+
+      secrets = [
+        {
+          name      = "POWERBI_CLIENT_SECRET"
+          valueFrom = "arn:aws:secretsmanager:us-east-1:908226940571:secret:POWERBI_CLIENT_SECRET"
+        },
+        {
+          name      = "CLERK_WEBHOOK_SECRET"
+          valueFrom = "arn:aws:secretsmanager:us-east-1:908226940571:secret:Clerk_Webhook"
         }
       ]
 
@@ -417,13 +463,15 @@ resource "aws_ecs_service" "backend" {
   name            = "retainwise-service"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 2
+  desired_count   = 1
   launch_type     = "FARGATE"
 
+  # COST-SAVING DEV/TEST CONFIG: Using public subnets to avoid NAT Gateway costs
+  # WARNING: This is NOT recommended for production use
   network_configuration {
-    subnets         = ["subnet-0fbe1d48a7085fa2d", "subnet-0c3068ad1b87abac0"]
+    subnets         = ["subnet-0d539fd1a67a870ec", "subnet-03dcb4c3648af8f4d"]  # Public subnets
     security_groups = [aws_security_group.ecs.id]
-    assign_public_ip = false
+    assign_public_ip = true  # Assign public IPs to avoid NAT Gateway dependency
   }
 
   load_balancer {
@@ -437,6 +485,141 @@ resource "aws_ecs_service" "backend" {
   tags = {
     Name = "retainwise-service"
   }
+}
+
+# Lambda function for ECS scaling
+resource "aws_lambda_function" "ecs_scaling" {
+  filename         = data.archive_file.lambda_zip.output_path
+  function_name    = "retainwise-ecs-scaling"
+  role            = aws_iam_role.lambda_ecs_scaling.arn
+  handler         = "lambda_ecs_scaling.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 30
+
+  environment {
+    variables = {
+      ECS_CLUSTER_NAME = aws_ecs_cluster.main.name
+      ECS_SERVICE_NAME = aws_ecs_service.backend.name
+    }
+  }
+
+  tags = {
+    Name = "retainwise-ecs-scaling"
+  }
+}
+
+# IAM role for Lambda function
+resource "aws_iam_role" "lambda_ecs_scaling" {
+  name = "retainwise-lambda-ecs-scaling-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# IAM policy for Lambda to update ECS service
+resource "aws_iam_policy" "lambda_ecs_scaling" {
+  name        = "retainwise-lambda-ecs-scaling-policy"
+  description = "Allow Lambda to update ECS service"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:UpdateService",
+          "ecs:DescribeServices"
+        ]
+        Resource = aws_ecs_service.backend.id
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
+# Attach policy to Lambda role
+resource "aws_iam_role_policy_attachment" "lambda_ecs_scaling" {
+  role       = aws_iam_role.lambda_ecs_scaling.name
+  policy_arn = aws_iam_policy.lambda_ecs_scaling.arn
+}
+
+# EventBridge rule to scale down ECS service (00:01 AM UK time)
+resource "aws_cloudwatch_event_rule" "ecs_scale_down" {
+  name                = "retainwise-ecs-scale-down"
+  description         = "Scale down ECS service to 0 tasks at 00:01 AM UK time"
+  schedule_expression = "cron(1 0 * * ? *)"  # 00:01 AM UTC (01:01 AM BST in summer)
+
+  tags = {
+    Name = "retainwise-ecs-scale-down"
+  }
+}
+
+# EventBridge rule to scale up ECS service (5:00 PM UK time)
+resource "aws_cloudwatch_event_rule" "ecs_scale_up" {
+  name                = "retainwise-ecs-scale-up"
+  description         = "Scale up ECS service to 1 task at 5:00 PM UK time"
+  schedule_expression = "cron(0 17 * * ? *)"  # 17:00 UTC (18:00 BST in summer)
+
+  tags = {
+    Name = "retainwise-ecs-scale-up"
+  }
+}
+
+# EventBridge target for scale down
+resource "aws_cloudwatch_event_target" "ecs_scale_down_target" {
+  rule      = aws_cloudwatch_event_rule.ecs_scale_down.name
+  target_id = "ECSScaleDown"
+  arn       = aws_lambda_function.ecs_scaling.arn
+
+  input = jsonencode({
+    desired_count = 0
+  })
+}
+
+# EventBridge target for scale up
+resource "aws_cloudwatch_event_target" "ecs_scale_up_target" {
+  rule      = aws_cloudwatch_event_rule.ecs_scale_up.name
+  target_id = "ECSScaleUp"
+  arn       = aws_lambda_function.ecs_scaling.arn
+
+  input = jsonencode({
+    desired_count = 1
+  })
+}
+
+# Lambda permission for EventBridge to invoke Lambda
+resource "aws_lambda_permission" "allow_eventbridge_scale_down" {
+  statement_id  = "AllowExecutionFromEventBridgeScaleDown"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ecs_scaling.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.ecs_scale_down.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_scale_up" {
+  statement_id  = "AllowExecutionFromEventBridgeScaleUp"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ecs_scaling.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.ecs_scale_up.arn
 }
 
 # NAT Gateway and EIP - COMMENTED OUT TO SAVE COSTS

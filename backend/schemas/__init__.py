@@ -1,16 +1,11 @@
 """
-Pydantic schemas for the RetainWise Analytics backend
+Schemas package for the RetainWise Analytics API
 """
 
-from .upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
-from .waitlist import WaitlistRequest, WaitlistResponse, WaitlistEmailInfo
+from .waitlist import WaitlistRequest, WaitlistResponse, LeadInfo
 
 __all__ = [
-    "UploadResponse",
-    "PresignedUrlResponse", 
-    "UploadInfo",
-    "UserUploadsResponse",
     "WaitlistRequest",
-    "WaitlistResponse", 
-    "WaitlistEmailInfo"
+    "WaitlistResponse",
+    "LeadInfo",
 ] 

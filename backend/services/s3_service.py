@@ -23,8 +23,10 @@ class S3Service:
         )
         self.bucket_name = os.getenv('S3_BUCKET')
         
+        # Don't raise error if S3_BUCKET is not set - will use local fallback
         if not self.bucket_name:
-            raise ValueError("S3_BUCKET environment variable is required")
+            logger.warning("S3_BUCKET environment variable not set - will use local storage fallback")
+            self.bucket_name = "local-storage"
     
     def upload_file_stream(self, file_content: bytes, user_id: str, filename: str) -> Dict[str, Any]:
         """

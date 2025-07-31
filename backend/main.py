@@ -5,9 +5,9 @@ from sqlalchemy import text, select
 from sqlalchemy.exc import IntegrityError
 from backend.api.database import get_db, init_db
 from backend.models import User
-from backend.schemas import UserCreate, UserResponse
+from backend.user_schemas import UserCreate, UserResponse
 from typing import List
-from backend.api.routes import predict, powerbi, upload, waitlist
+from backend.api.routes import predict, powerbi, upload, waitlist, clerk
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="RetainWise Analytics API")
@@ -15,6 +15,7 @@ app = FastAPI(title="RetainWise Analytics API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:3000",
         "https://retainwiseanalytics.com",
         "https://www.retainwiseanalytics.com",
         "https://app.retainwiseanalytics.com"
@@ -29,6 +30,7 @@ app.include_router(predict.router, prefix="/predict", tags=["predict"])
 app.include_router(powerbi.router, prefix="/powerbi", tags=["powerbi"])
 app.include_router(upload.router, tags=["upload"])  # Upload routes are at /upload/*
 app.include_router(waitlist.router)  # Waitlist routes are at /api/waitlist/*
+app.include_router(clerk.router)  # Clerk webhook routes are at /api/clerk/*
 
 @app.on_event("startup")
 async def startup_event():

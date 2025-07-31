@@ -8,6 +8,7 @@ from datetime import datetime
 class WaitlistRequest(BaseModel):
     """Request schema for waitlist email submission"""
     email: EmailStr
+    source: Optional[str] = "landing_page"
 
 class WaitlistResponse(BaseModel):
     """Response schema for waitlist operations"""
@@ -15,11 +16,13 @@ class WaitlistResponse(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
 
-class WaitlistEmailInfo(BaseModel):
-    """Schema for waitlist email information"""
+class LeadInfo(BaseModel):
+    """Schema for lead information"""
     id: int
     email: str
-    created_at: datetime
+    joined_at: datetime
+    source: Optional[str] = None
+    converted_to_user: bool
 
     class Config:
         from_attributes = True 

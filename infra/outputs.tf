@@ -57,4 +57,24 @@ output "ecs_task_execution_role_arn" {
 output "ecs_task_role_arn" {
   description = "ARN of the ECS task role"
   value       = aws_iam_role.ecs_task.arn
+}
+
+output "lambda_ecs_scaling_function_name" {
+  description = "Name of the Lambda function for ECS scaling"
+  value       = aws_lambda_function.ecs_scaling.function_name
+}
+
+output "lambda_ecs_scaling_function_arn" {
+  description = "ARN of the Lambda function for ECS scaling"
+  value       = aws_lambda_function.ecs_scaling.arn
+}
+
+output "ecs_scale_down_rule_arn" {
+  description = "ARN of the EventBridge rule for scaling down ECS"
+  value       = aws_cloudwatch_event_rule.ecs_scale_down.arn
+}
+
+output "ecs_scale_up_rule_arn" {
+  description = "ARN of the EventBridge rule for scaling up ECS"
+  value       = aws_cloudwatch_event_rule.ecs_scale_up.arn
 } 

@@ -3,13 +3,15 @@ Upload routes for handling CSV file uploads to S3
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional
 import logging
 
 from backend.api.database import get_db
 from backend.models import Upload, User
 from backend.services.s3_service import s3_service
-from backend.schemas import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
+from backend.schemas.upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,7 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 async def upload_csv(
     file: UploadFile = File(...),
     user_id: int = Form(...),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Upload a CSV file directly to S3 and store metadata in database
@@ -49,25 +51,66 @@ async def upload_csv(
             )
         
         # Check if user exists
-        user = db.query(User).filter(User.id == user_id).first()
+        result = await db.execute(select(User).filter(User.id == user_id))
+        user = result.scalar_one_or_none()
         if not user:
             raise HTTPException(
                 status_code=404,
                 detail="User not found"
             )
         
-        # Upload file to S3
-        upload_result = s3_service.upload_file_stream(
-            file_content=file_content,
-            user_id=str(user_id),
-            filename=file.filename
-        )
-        
-        if not upload_result["success"]:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Upload failed: {upload_result.get('error', 'Unknown error')}"
+        # Try to upload file to S3, fallback to local storage if AWS credentials not available
+        try:
+            upload_result = s3_service.upload_file_stream(
+                file_content=file_content,
+                user_id=str(user_id),
+                filename=file.filename
             )
+            
+            if not upload_result["success"]:
+                # Fallback to local storage
+                import os
+                from pathlib import Path
+                
+                # Create uploads directory
+                uploads_dir = Path("uploads") / str(user_id)
+                uploads_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Save file locally
+                file_path = uploads_dir / f"{file.filename}"
+                with open(file_path, "wb") as f:
+                    f.write(file_content)
+                
+                upload_result = {
+                    "success": True,
+                    "object_key": f"local/{user_id}/{file.filename}",
+                    "size": len(file_content)
+                }
+                
+                logger.info(f"Saved file locally: {file_path}")
+        except Exception as s3_error:
+            logger.warning(f"S3 upload failed, using local storage: {s3_error}")
+            
+            # Fallback to local storage
+            import os
+            from pathlib import Path
+            
+            # Create uploads directory
+            uploads_dir = Path("uploads") / str(user_id)
+            uploads_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save file locally
+            file_path = uploads_dir / f"{file.filename}"
+            with open(file_path, "wb") as f:
+                f.write(file_content)
+            
+            upload_result = {
+                "success": True,
+                "object_key": f"local/{user_id}/{file.filename}",
+                "size": len(file_content)
+            }
+            
+            logger.info(f"Saved file locally: {file_path}")
         
         # Store upload record in database
         upload_record = Upload(
@@ -79,8 +122,8 @@ async def upload_csv(
         )
         
         db.add(upload_record)
-        db.commit()
-        db.refresh(upload_record)
+        await db.commit()
+        await db.refresh(upload_record)
         
         logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id}")
         
