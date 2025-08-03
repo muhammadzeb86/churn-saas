@@ -31,6 +31,8 @@ target_metadata = Base.metadata
 def get_url():
     """Get database URL from environment variable or config"""
     # Try to get from environment variable first
+    if context.is_offline_mode():
+        return "postgresql://user:pass@localhost/db"
     database_url = os.getenv("DATABASE_URL")
     if database_url:
         # Convert async URL to sync URL for Alembic
@@ -72,14 +74,18 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Update the config with the database URL
-    config.set_main_option("sqlalchemy.url", get_url())
-    
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # This block is only needed for online migrations, not autogeneration
+    connectable = context.config.attributes.get("connection", None)
+
+    if connectable is None:
+        # Update the config with the database URL
+        config.set_main_option("sqlalchemy.url", get_url())
+        
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section, {}),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+        )
 
     with connectable.connect() as connection:
         context.configure(

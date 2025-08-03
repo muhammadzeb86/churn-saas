@@ -6,7 +6,7 @@ from backend.api.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     clerk_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -46,7 +46,7 @@ class Upload(Base):
     s3_object_key: Mapped[str] = mapped_column(Text, nullable=False)
     # File size in bytes
     file_size: Mapped[int] = mapped_column(Integer, nullable=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     upload_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

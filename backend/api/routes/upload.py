@@ -34,6 +34,7 @@ async def upload_csv(
     Returns:
         Upload response with success status and object key
     """
+    logger.info(f"Received upload request for user_id: {user_id}, filename: {file.filename}")
     try:
         # Validate file type
         if not file.filename.lower().endswith('.csv'):
@@ -51,8 +52,7 @@ async def upload_csv(
             )
         
         # Check if user exists
-        user_id_int = int(user_id)  # Convert string to int for database query
-        result = await db.execute(select(User).filter(User.id == user_id_int))
+        result = await db.execute(select(User).filter(User.id == user_id))
         user = result.scalar_one_or_none()
         if not user:
             raise HTTPException(
@@ -118,7 +118,7 @@ async def upload_csv(
             filename=file.filename,
             s3_object_key=upload_result["object_key"],
             file_size=upload_result["size"],
-            user_id=user_id_int,  # Use the integer version for database
+            user_id=user_id,
             status="uploaded"
         )
         
@@ -126,7 +126,7 @@ async def upload_csv(
         await db.commit()
         await db.refresh(upload_record)
         
-        logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id_int}")
+        logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id}")
         
         return UploadResponse(
             success=True,
@@ -149,7 +149,7 @@ async def upload_csv(
 @router.post("/presign", response_model=PresignedUrlResponse)
 async def get_presigned_upload_url(
     filename: str = Form(...),
-    user_id: int = Form(...),
+    user_id: str = Form(...),
     db: Session = Depends(get_db)
 ):
     """
@@ -181,7 +181,7 @@ async def get_presigned_upload_url(
         
         # Generate presigned URL
         presigned_result = s3_service.generate_presigned_url(
-            user_id=str(user_id),
+            user_id=user_id,
             filename=filename
         )
         
@@ -212,7 +212,7 @@ async def get_presigned_upload_url(
 @router.post("/confirm-upload")
 async def confirm_upload(
     object_key: str = Form(...),
-    user_id: int = Form(...),
+    user_id: str = Form(...),
     filename: str = Form(...),
     file_size: Optional[int] = Form(None),
     db: Session = Depends(get_db)
@@ -281,7 +281,7 @@ async def confirm_upload(
 
 @router.get("/files/{user_id}")
 async def get_user_uploads(
-    user_id: int,
+    user_id: str,
     db: Session = Depends(get_db)
 ):
     """
