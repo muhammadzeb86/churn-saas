@@ -20,7 +20,7 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 @router.post("/csv", response_model=UploadResponse)
 async def upload_csv(
     file: UploadFile = File(...),
-    user_id: int = Form(...),
+    user_id: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -51,7 +51,8 @@ async def upload_csv(
             )
         
         # Check if user exists
-        result = await db.execute(select(User).filter(User.id == user_id))
+        user_id_int = int(user_id)  # Convert string to int for database query
+        result = await db.execute(select(User).filter(User.id == user_id_int))
         user = result.scalar_one_or_none()
         if not user:
             raise HTTPException(
@@ -63,7 +64,7 @@ async def upload_csv(
         try:
             upload_result = s3_service.upload_file_stream(
                 file_content=file_content,
-                user_id=str(user_id),
+                user_id=user_id,  # Already a string now
                 filename=file.filename
             )
             
@@ -73,7 +74,7 @@ async def upload_csv(
                 from pathlib import Path
                 
                 # Create uploads directory
-                uploads_dir = Path("uploads") / str(user_id)
+                uploads_dir = Path("uploads") / user_id  # Already a string now
                 uploads_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Save file locally
@@ -96,7 +97,7 @@ async def upload_csv(
             from pathlib import Path
             
             # Create uploads directory
-            uploads_dir = Path("uploads") / str(user_id)
+            uploads_dir = Path("uploads") / user_id  # Already a string now
             uploads_dir.mkdir(parents=True, exist_ok=True)
             
             # Save file locally
@@ -117,7 +118,7 @@ async def upload_csv(
             filename=file.filename,
             s3_object_key=upload_result["object_key"],
             file_size=upload_result["size"],
-            user_id=user_id,
+            user_id=user_id_int,  # Use the integer version for database
             status="uploaded"
         )
         
@@ -125,7 +126,7 @@ async def upload_csv(
         await db.commit()
         await db.refresh(upload_record)
         
-        logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id}")
+        logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id_int}")
         
         return UploadResponse(
             success=True,
