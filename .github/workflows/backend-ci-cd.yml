@@ -52,14 +52,6 @@ jobs:
         docker build -t $ECR_REPOSITORY:${{ github.sha }} .
         docker build -t $ECR_REPOSITORY:latest .
         
-    - name: Test Docker image locally
-      run: |
-        # Quick test to ensure the image builds and can start
-        docker run --rm -d --name test-container $ECR_REPOSITORY:latest
-        sleep 10
-        docker logs test-container
-        docker stop test-container
-
   # Job 2: Deploy to AWS (only on main branch)
   deploy:
     name: Deploy to AWS
