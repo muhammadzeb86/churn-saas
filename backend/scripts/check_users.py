@@ -10,11 +10,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text, select
 import logging
 
-# Add the backend directory to Python path
-sys.path.append('/app/backend')
-
-from models import User
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -100,24 +95,28 @@ VALUES (
 );
 
 # PYTHON/SQLALCHEMY INSERT CODE:
-from backend.models import User
-from datetime import datetime
+from sqlalchemy import create_engine, text
+import os
 
-new_user = User(
-    id='user_test123',
-    email='test@example.com',
-    clerk_id='user_test123',
-    full_name='Test User',
-    first_name='Test',
-    last_name='User',
-    avatar_url='https://example.com/avatar.jpg',
-    created_at=datetime.utcnow(),
-    updated_at=datetime.utcnow()
-)
+database_url = os.getenv("DATABASE_URL")
+engine = create_engine(database_url)
 
-db.add(new_user)
-await db.commit()
-await db.refresh(new_user)
+with engine.connect() as conn:
+    conn.execute(text("""
+        INSERT INTO users (id, email, clerk_id, full_name, first_name, last_name, avatar_url, created_at, updated_at)
+        VALUES (
+            'user_test123',
+            'test@example.com',
+            'user_test123',
+            'Test User',
+            'Test',
+            'User',
+            'https://example.com/avatar.jpg',
+            NOW(),
+            NOW()
+        )
+    """))
+    conn.commit()
 
 # OR USE THE EXISTING /auth/sync_user ENDPOINT:
 curl -X POST https://backend.retainwiseanalytics.com/auth/sync_user \\
