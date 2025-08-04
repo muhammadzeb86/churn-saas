@@ -4,10 +4,8 @@ Script to check users table in production database
 """
 import asyncio
 import os
-import sys
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text, select
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
 import logging
 
 # Configure logging
@@ -51,13 +49,13 @@ async def check_users_table():
             
             if not users:
                 logger.warning("Users table is EMPTY!")
-                print("\n=== USERS TABLE IS EMPTY ===")
+                print("=== USERS TABLE IS EMPTY ===")
                 print("No users found in the database.")
                 print("\n=== SAMPLE USER INSERT CODE ===")
                 print_sample_insert_code()
             else:
                 logger.info(f"Found {len(users)} users in the database:")
-                print("\n=== USERS TABLE CONTENTS ===")
+                print("=== USERS TABLE CONTENTS ===")
                 for i, user in enumerate(users, 1):
                     print(f"User {i}:")
                     print(f"  ID: {user[0]}")
@@ -79,56 +77,54 @@ async def check_users_table():
 
 def print_sample_insert_code():
     """Print sample code to insert a test user"""
-    print("""
-# SQL INSERT STATEMENT:
-INSERT INTO users (id, email, clerk_id, full_name, first_name, last_name, avatar_url, created_at, updated_at)
-VALUES (
-    'user_test123',
-    'test@example.com',
-    'user_test123',
-    'Test User',
-    'Test',
-    'User',
-    'https://example.com/avatar.jpg',
-    NOW(),
-    NOW()
-);
-
-# PYTHON/SQLALCHEMY INSERT CODE:
-from sqlalchemy import create_engine, text
-import os
-
-database_url = os.getenv("DATABASE_URL")
-engine = create_engine(database_url)
-
-with engine.connect() as conn:
-    conn.execute(text("""
-        INSERT INTO users (id, email, clerk_id, full_name, first_name, last_name, avatar_url, created_at, updated_at)
-        VALUES (
-            'user_test123',
-            'test@example.com',
-            'user_test123',
-            'Test User',
-            'Test',
-            'User',
-            'https://example.com/avatar.jpg',
-            NOW(),
-            NOW()
-        )
-    """))
-    conn.commit()
-
-# OR USE THE EXISTING /auth/sync_user ENDPOINT:
-curl -X POST https://backend.retainwiseanalytics.com/auth/sync_user \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "id": "user_test123",
-    "email_addresses": [{"email_address": "test@example.com"}],
-    "first_name": "Test",
-    "last_name": "User",
-    "image_url": "https://example.com/avatar.jpg"
-  }'
-""")
+    print("SQL INSERT STATEMENT:")
+    print("INSERT INTO users (id, email, clerk_id, full_name, first_name, last_name, avatar_url, created_at, updated_at)")
+    print("VALUES (")
+    print("    'user_test123',")
+    print("    'test@example.com',")
+    print("    'user_test123',")
+    print("    'Test User',")
+    print("    'Test',")
+    print("    'User',")
+    print("    'https://example.com/avatar.jpg',")
+    print("    NOW(),")
+    print("    NOW()")
+    print(");")
+    print()
+    print("PYTHON/SQLALCHEMY INSERT CODE:")
+    print("from sqlalchemy import create_engine, text")
+    print("import os")
+    print()
+    print("database_url = os.getenv('DATABASE_URL')")
+    print("engine = create_engine(database_url)")
+    print()
+    print("with engine.connect() as conn:")
+    print("    conn.execute(text('''")
+    print("        INSERT INTO users (id, email, clerk_id, full_name, first_name, last_name, avatar_url, created_at, updated_at)")
+    print("        VALUES (")
+    print("            'user_test123',")
+    print("            'test@example.com',")
+    print("            'user_test123',")
+    print("            'Test User',")
+    print("            'Test',")
+    print("            'User',")
+    print("            'https://example.com/avatar.jpg',")
+    print("            NOW(),")
+    print("            NOW()")
+    print("        )")
+    print("    '''))")
+    print("    conn.commit()")
+    print()
+    print("OR USE THE EXISTING /auth/sync_user ENDPOINT:")
+    print("curl -X POST https://backend.retainwiseanalytics.com/auth/sync_user \\")
+    print("  -H 'Content-Type: application/json' \\")
+    print("  -d '{")
+    print("    \"id\": \"user_test123\",")
+    print("    \"email_addresses\": [{\"email_address\": \"test@example.com\"}],")
+    print("    \"first_name\": \"Test\",")
+    print("    \"last_name\": \"User\",")
+    print("    \"image_url\": \"https://example.com/avatar.jpg\"")
+    print("  }'")
 
 if __name__ == "__main__":
     asyncio.run(check_users_table()) 
