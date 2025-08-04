@@ -6,7 +6,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app/backend
 
 # Install system dependencies and Rust toolchain
 RUN apt-get update && apt-get install -y \
