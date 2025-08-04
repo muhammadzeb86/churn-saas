@@ -334,4 +334,34 @@ async def get_user_uploads(
         raise HTTPException(
             status_code=500,
             detail="Internal server error retrieving uploads"
+        )
+
+@router.get("/uploads")
+async def get_uploads(
+    db: Session = Depends(get_db)
+):
+    """
+    Get all uploads (for frontend compatibility)
+    This endpoint returns an empty list since we need user context
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        Empty uploads list
+    """
+    try:
+        # For now, return empty list since we don't have user context
+        # In a real app, you'd get the user from JWT token or session
+        return {
+            "success": True,
+            "uploads": [],
+            "count": 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting uploads: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error retrieving uploads"
         ) 

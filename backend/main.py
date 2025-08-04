@@ -126,6 +126,92 @@ async def get_users(db: AsyncSession = Depends(get_db)):
             detail=f"An error occurred while fetching users: {str(e)}"
         )
 
+@app.post("/auth/sync_user")
+async def sync_user(user_data: dict, db: AsyncSession = Depends(get_db)):
+    """
+    Sync user data from frontend (Clerk user)
+    
+    Args:
+        user_data: User data from Clerk
+        db: Database session
+        
+    Returns:
+        User sync response
+    """
+    try:
+        # Extract user data
+        clerk_id = user_data.get('id')
+        email = user_data.get('email_addresses', [{}])[0].get('email_address') if user_data.get('email_addresses') else None
+        first_name = user_data.get('first_name', '')
+        last_name = user_data.get('last_name', '')
+        full_name = f"{first_name} {last_name}".strip() or "Unknown User"
+        avatar_url = user_data.get('image_url')
+        
+        if not clerk_id or not email:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required user data (id or email)"
+            )
+        
+        # Check if user already exists
+        result = await db.execute(select(User).where(User.clerk_id == clerk_id))
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            # Update existing user
+            existing_user.email = email
+            existing_user.full_name = full_name
+            existing_user.first_name = first_name
+            existing_user.last_name = last_name
+            existing_user.avatar_url = avatar_url
+            
+            await db.commit()
+            await db.refresh(existing_user)
+            
+            return {
+                "success": True,
+                "message": "User updated successfully",
+                "user": {
+                    "id": existing_user.id,
+                    "email": existing_user.email,
+                    "full_name": existing_user.full_name
+                }
+            }
+        else:
+            # Create new user
+            new_user = User(
+                id=clerk_id,  # Use clerk_id as the primary key
+                email=email,
+                clerk_id=clerk_id,
+                full_name=full_name,
+                first_name=first_name,
+                last_name=last_name,
+                avatar_url=avatar_url
+            )
+            
+            db.add(new_user)
+            await db.commit()
+            await db.refresh(new_user)
+            
+            return {
+                "success": True,
+                "message": "User created successfully",
+                "user": {
+                    "id": new_user.id,
+                    "email": new_user.email,
+                    "full_name": new_user.full_name
+                }
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while syncing user: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
