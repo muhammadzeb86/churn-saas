@@ -1,0 +1,8 @@
+{
+  "containerOverrides": [
+    {
+      "name": "retainwise-backend",
+      "command": ["python", "backend/scripts/clear_db.py"]
+    }
+  ]
+} 
