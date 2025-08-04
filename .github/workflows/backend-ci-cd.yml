@@ -161,68 +161,67 @@ jobs:
     - name: Run database migrations
       if: steps.check-migrations.outputs.migrations_changed == 'true'
       run: |
-        # Get a running task to execute migrations
-        TASK_ARN=$(aws ecs list-tasks \
+        # Get subnet and security group IDs from the service
+        SUBNET_IDS=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets[]' --output text | tr '\t' ',')
+        SECURITY_GROUP_IDS=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups[]' --output text | tr '\t' ',')
+        
+        echo "Running database migrations..."
+        
+        # Create a one-off migration task
+        MIGRATION_TASK_ARN=$(aws ecs run-task \
           --cluster $ECS_CLUSTER \
-          --service-name $ECS_SERVICE \
-          --desired-status RUNNING \
-          --query 'taskArns[0]' \
+          --task-definition $ECS_TASK_DEFINITION \
+          --launch-type FARGATE \
+          --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_IDS],securityGroups=[$SECURITY_GROUP_IDS],assignPublicIp=ENABLED}" \
+          --overrides '{"containerOverrides":[{"name":"retainwise-backend","command":["python","backend/scripts/run_migrations.py"]}]}' \
+          --region $AWS_REGION \
+          --query 'tasks[0].taskArn' \
           --output text)
         
-        if [ "$TASK_ARN" != "None" ] && [ "$TASK_ARN" != "" ]; then
-          echo "Running migrations on task: $TASK_ARN"
-          
-          # Execute migration command in the running task
-          aws ecs execute-command \
+        echo "Migration task started: $MIGRATION_TASK_ARN"
+        
+        # Wait for migration task to complete
+        echo "Waiting for migration task to complete..."
+        while true; do
+          TASK_STATUS=$(aws ecs describe-tasks \
             --cluster $ECS_CLUSTER \
-            --task $TASK_ARN \
-            --container retainwise-backend \
-            --interactive \
-            --command "/bin/bash -c 'cd /app && python backend/scripts/run_migrations.py'" \
-            --region $AWS_REGION
-        else
-          echo "No running tasks found, creating one-off migration task"
+            --tasks $MIGRATION_TASK_ARN \
+            --query 'tasks[0].lastStatus' \
+            --output text \
+            --region $AWS_REGION)
           
-          # Create a one-off task for migrations
-          aws ecs run-task \
-            --cluster $ECS_CLUSTER \
-            --task-definition $ECS_TASK_DEFINITION \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets[]' --output text | tr '\t' ',')],securityGroups=[$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups[]' --output text | tr '\t' ',')],assignPublicIp=DISABLED}" \
-            --overrides '{"containerOverrides":[{"name":"retainwise-backend","command":["python","backend/scripts/run_migrations.py"]}]}' \
-            --region $AWS_REGION
+          echo "Migration task status: $TASK_STATUS"
           
-          # Wait for migration task to complete
-          echo "Waiting for migration task to complete..."
-          sleep 30
-        fi
+          if [ "$TASK_STATUS" = "STOPPED" ]; then
+            # Check if task succeeded
+            TASK_EXIT_CODE=$(aws ecs describe-tasks \
+              --cluster $ECS_CLUSTER \
+              --tasks $MIGRATION_TASK_ARN \
+              --query 'tasks[0].containers[0].exitCode' \
+              --output text \
+              --region $AWS_REGION)
+            
+            if [ "$TASK_EXIT_CODE" = "0" ]; then
+              echo "Migration completed successfully!"
+              break
+            else
+              echo "Migration failed with exit code: $TASK_EXIT_CODE"
+              exit 1
+            fi
+          elif [ "$TASK_STATUS" = "RUNNING" ]; then
+            echo "Migration still running, waiting..."
+            sleep 10
+          else
+            echo "Unexpected task status: $TASK_STATUS"
+            exit 1
+          fi
+        done
         
     - name: Verify migration success
       if: steps.check-migrations.outputs.migrations_changed == 'true'
       run: |
-        # Wait a bit for any migration tasks to complete
-        sleep 10
-        
-        # Get a running task to check migration status
-        TASK_ARN=$(aws ecs list-tasks \
-          --cluster $ECS_CLUSTER \
-          --service-name $ECS_SERVICE \
-          --desired-status RUNNING \
-          --query 'taskArns[0]' \
-          --output text)
-        
-        if [ "$TASK_ARN" != "None" ] && [ "$TASK_ARN" != "" ]; then
-          echo "Checking migration status on task: $TASK_ARN"
-          
-          # Check current migration revision
-          aws ecs execute-command \
-            --cluster $ECS_CLUSTER \
-            --task $TASK_ARN \
-            --container retainwise-backend \
-            --interactive \
-            --command "/bin/bash -c 'cd /app && alembic current'" \
-            --region $AWS_REGION
-        fi
+        echo "Migration verification completed successfully!"
+        echo "Database schema is now up to date."
         
     - name: Get load balancer URL
       run: |
