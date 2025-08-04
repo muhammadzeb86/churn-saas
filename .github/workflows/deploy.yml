@@ -34,17 +34,65 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Run database migrations
         run: |
-          aws ecs run-task \
+          # Get subnet and security group IDs from the service
+          SUBNET_IDS="${{ secrets.SUBNET_ID_1 }},${{ secrets.SUBNET_ID_2 }}"
+          SECURITY_GROUP_IDS="${{ secrets.SECURITY_GROUP_ID }}"
+          
+          echo "Running database migrations..."
+          
+          # Create a one-off migration task
+          MIGRATION_TASK_ARN=$(aws ecs run-task \
             --cluster retainwise-cluster \
             --task-definition retainwise-backend \
             --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.SUBNET_ID_1 }}, ${{ secrets.SUBNET_ID_2 }}],securityGroups=[${{ secrets.SECURITY_GROUP_ID }}],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_IDS],securityGroups=[$SECURITY_GROUP_IDS],assignPublicIp=ENABLED}" \
             --overrides '{"containerOverrides":[{"name":"retainwise-backend","command":["python","backend/scripts/run_migrations.py"]}]}' \
-            --wait 'tasksStopped'
+            --region us-east-1 \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          
+          echo "Migration task started: $MIGRATION_TASK_ARN"
+          
+          # Wait for migration task to complete
+          echo "Waiting for migration task to complete..."
+          while true; do
+            TASK_STATUS=$(aws ecs describe-tasks \
+              --cluster retainwise-cluster \
+              --tasks $MIGRATION_TASK_ARN \
+              --query 'tasks[0].lastStatus' \
+              --output text \
+              --region us-east-1)
+            
+            echo "Migration task status: $TASK_STATUS"
+            
+            if [ "$TASK_STATUS" = "STOPPED" ]; then
+              # Check if task succeeded
+              TASK_EXIT_CODE=$(aws ecs describe-tasks \
+                --cluster retainwise-cluster \
+                --tasks $MIGRATION_TASK_ARN \
+                --query 'tasks[0].containers[0].exitCode' \
+                --output text \
+                --region us-east-1)
+              
+              if [ "$TASK_EXIT_CODE" = "0" ]; then
+                echo "Migration completed successfully!"
+                break
+              else
+                echo "Migration failed with exit code: $TASK_EXIT_CODE"
+                exit 1
+              fi
+            elif [ "$TASK_STATUS" = "RUNNING" ]; then
+              echo "Migration still running, waiting..."
+              sleep 10
+            else
+              echo "Unexpected task status: $TASK_STATUS"
+              exit 1
+            fi
+          done
             
       - name: Update ECS service
         run: |
