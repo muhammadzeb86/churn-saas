@@ -27,7 +27,7 @@ async def clear_database():
             logger.info("Creating public schema...")
             await conn.execute(text("CREATE SCHEMA public;"))
             logger.info("Granting permissions...")
-            await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres;"))
+            await conn.execute(text("GRANT ALL ON SCHEMA public TO retainwiseuser;"))
             await conn.execute(text("GRANT ALL ON SCHEMA public TO public;"))
             logger.info("Database schema cleared successfully.")
     except Exception as e:
