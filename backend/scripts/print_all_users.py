@@ -3,6 +3,7 @@ import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 
+# Force deployment trigger
 async def main():
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
