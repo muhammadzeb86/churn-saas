@@ -1,7 +1,7 @@
 ﻿from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import select
 from backend.api.database import async_session_maker
-from models import Upload
+from backend.models import Upload
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 

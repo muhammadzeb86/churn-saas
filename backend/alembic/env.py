@@ -7,9 +7,9 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
 
-# Import your models to ensure they are registered with SQLAlchemy
+# Import your models here for 'autogenerate' support
 from backend.api.database import Base
-from models import User, Upload
+from backend.models import User, Upload
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

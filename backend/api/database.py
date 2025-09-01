@@ -45,7 +45,7 @@ async def get_db() -> AsyncSession:
 async def init_db():
     async with engine.begin() as conn:
         # Import all models here to ensure they are registered with Base
-        from models import User, Lead  # noqa
+        from backend.models import User, Lead  # noqa
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
