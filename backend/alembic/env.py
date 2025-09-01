@@ -8,7 +8,8 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import your models to ensure they are registered with SQLAlchemy
-from models import Base, User, Upload
+from api.database import Base
+from models import User, Upload
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

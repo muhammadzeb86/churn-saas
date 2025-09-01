@@ -9,6 +9,7 @@ from backend.user_schemas import UserCreate, UserResponse
 from typing import List
 from backend.api.routes import predict, powerbi, upload, waitlist, clerk
 from fastapi.middleware.cors import CORSMiddleware
+from api.health import db_ping_ok
 
 app = FastAPI(title="RetainWise Analytics API")
 
@@ -53,12 +54,14 @@ async def health_check():
     return {"status": "healthy", "service": "retainwise-backend"}
 
 @app.get("/health/detailed")
-async def detailed_health_check(db: AsyncSession = Depends(get_db)):
+async def detailed_health_check():
     """Detailed health check including database connectivity"""
     try:
-        # Test the database connection
-        result = await db.execute(text("SELECT 1"))
-        await result.fetchone()
+        # Test the database connection using the helper
+        db_ok = await db_ping_ok()
+        if not db_ok:
+            raise Exception("Database ping failed")
+        
         return {
             "status": "healthy", 
             "service": "retainwise-backend",
@@ -80,7 +83,7 @@ async def test_db(db: AsyncSession = Depends(get_db)):
     try:
         # Test the database connection using SQLAlchemy
         result = await db.execute(text("SELECT 1"))
-        await result.fetchone()
+        result.fetchone()
         return {"message": "Successfully connected to the database"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")

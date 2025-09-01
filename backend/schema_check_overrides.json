@@ -1,0 +1,8 @@
+{
+  "containerOverrides": [
+    {
+      "name": "retainwise-backend",
+      "command": ["python", "check_db_schema.py"]
+    }
+  ]
+} 
