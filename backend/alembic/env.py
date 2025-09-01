@@ -8,7 +8,7 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import your models to ensure they are registered with SQLAlchemy
-from api.database import Base
+from backend.api.database import Base
 from models import User, Upload
 
 # this is the Alembic Config object, which provides

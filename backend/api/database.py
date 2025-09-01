@@ -1,4 +1,4 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+﻿from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from dotenv import load_dotenv
 import os
@@ -18,13 +18,16 @@ engine = create_async_engine(
     max_overflow=20  # Maximum number of connections that can be created beyond pool_size
 )
 
-# Create async session maker
-AsyncSessionMaker = async_sessionmaker(
+# canonical factory (lowercase snake_case)
+async_session_maker = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False
 )
+
+# optional alias for backward compatibility (TitleCase used elsewhere)
+AsyncSessionMaker = async_session_maker
 
 # Base class for declarative models
 class Base(DeclarativeBase):
@@ -47,6 +50,9 @@ async def init_db():
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
 
+# Export all the important names
+__all__ = ["engine", "Base", "async_session_maker", "AsyncSessionMaker", "AsyncSession", "get_db", "init_db"]
+
 # Example of how to use the session in FastAPI endpoints:
 """
 from fastapi import Depends
@@ -56,4 +62,4 @@ async def get_items(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Item))
     items = result.scalars().all()
     return items
-""" 
+"""
