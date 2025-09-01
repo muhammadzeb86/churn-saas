@@ -1,12 +1,6 @@
-FROM python:3.11-slim
-
-# Set working directory to /app
+﻿# ---- base ----
+FROM python:3.11-slim AS base
 WORKDIR /app
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/backend
 
 # Install system dependencies and Rust toolchain
 RUN apt-get update && apt-get install -y \
@@ -18,19 +12,23 @@ RUN apt-get update && apt-get install -y \
 # Add Rust to PATH
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt ./backend/requirements.txt
-RUN pip install --no-cache-dir -r ./backend/requirements.txt && pip install --no-cache-dir email-validator
+# Copy only backend into image
+COPY backend/ /app/
 
-# Copy the entire backend directory as a Python package
-COPY . ./backend/
+# Install backend deps
+RUN pip install --no-cache-dir -r /app/requirements.txt && pip install --no-cache-dir email-validator
 
-# Create __init__.py files to make all directories proper Python packages
-RUN touch ./backend/__init__.py && \
-    find ./backend -type d -exec touch {}/__init__.py \;
+# Ensure Python can import "backend.*"
+ENV PYTHONPATH=/app
 
-# Expose the port
+# Build-time sanity: prove we can import backend.main
+RUN python - <<'PY'
+import importlib, sys, pathlib
+print("PYTHONPATH:", sys.path)
+m = importlib.import_module("backend.main")
+print("Imported OK:", m.__file__)
+PY
+
+# Expose and launch
 EXPOSE 8000
-
-# Run the application with backend as a module
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

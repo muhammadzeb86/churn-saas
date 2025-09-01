@@ -9,7 +9,7 @@ from backend.user_schemas import UserCreate, UserResponse
 from typing import List
 from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list
 from fastapi.middleware.cors import CORSMiddleware
-from api.health import db_ping_ok
+from backend.api.health import db_ping_ok
 
 app = FastAPI(title="RetainWise Analytics API")
 
