@@ -19,7 +19,7 @@ class UploadResponse(BaseModel):
     filename: str
     status: str
     upload_time: datetime
-    user_id: int
+    user_id: str
 
     class Config:
         from_attributes = True 

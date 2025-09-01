@@ -33,7 +33,7 @@ def validate_csv_file(file: UploadFile) -> None:
             detail=f"Error validating file: {str(e)}"
         )
 
-async def save_upload_file(file: UploadFile, user_id: int) -> str:
+async def save_upload_file(file: UploadFile, user_id: str) -> str:
     """Save the uploaded file to the uploads directory."""
     # Create uploads directory if it doesn't exist
     uploads_dir = Path("uploads")

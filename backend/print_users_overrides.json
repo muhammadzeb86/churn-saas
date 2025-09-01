@@ -2,7 +2,7 @@
   "containerOverrides": [
     {
       "name": "retainwise-backend",
-      "command": ["python", "scripts/clear_db.py"]
+      "command": ["python", "scripts/print_all_users.py"]
     }
   ]
 } 

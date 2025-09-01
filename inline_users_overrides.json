@@ -1,0 +1,12 @@
+{
+  "containerOverrides": [
+    {
+      "name": "retainwise-backend",
+      "command": [
+        "python",
+        "-c",
+        "import os; from sqlalchemy.ext.asyncio import create_async_engine; import asyncio; from sqlalchemy import text; async def go(): db=os.getenv('DATABASE_URL'); db=db.replace('postgresql://','postgresql+asyncpg://') if db else db; eng=create_async_engine(db,echo=False); async with eng.begin() as conn: res=await conn.execute(text('SELECT * FROM users;')); rows=await res.fetchall(); print(f'Total users: {len(rows)}'); [print(row) for row in rows]; await eng.dispose(); asyncio.run(go())"
+      ]
+    }
+  ]
+} 
