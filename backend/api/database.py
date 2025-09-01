@@ -1,4 +1,4 @@
-﻿from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from dotenv import load_dotenv
 import os
@@ -45,7 +45,7 @@ async def get_db() -> AsyncSession:
 async def init_db():
     async with engine.begin() as conn:
         # Import all models here to ensure they are registered with Base
-        from backend.models import User, Lead  # noqa
+        from models import User, Lead  # noqa
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)

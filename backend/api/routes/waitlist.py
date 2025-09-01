@@ -8,9 +8,9 @@ from sqlalchemy import select
 import logging
 import re
 
-from backend.api.database import get_db
-from backend.models import Lead
-from backend.schemas import WaitlistRequest, WaitlistResponse
+from api.database import get_db
+from models import Lead
+from schemas import WaitlistRequest, WaitlistResponse
 
 logger = logging.getLogger(__name__)
 

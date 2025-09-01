@@ -18,17 +18,17 @@ COPY backend/ /app/
 # Install backend deps
 RUN pip install --no-cache-dir -r /app/requirements.txt && pip install --no-cache-dir email-validator
 
-# Ensure Python can import "backend.*"
+# Ensure Python can import modules directly
 ENV PYTHONPATH=/app
 
-# Build-time sanity: prove we can import backend.main
+# Build-time sanity: prove we can import main
 RUN python - <<'PY'
 import importlib, sys, pathlib
 print("PYTHONPATH:", sys.path)
-m = importlib.import_module("backend.main")
+m = importlib.import_module("main")
 print("Imported OK:", m.__file__)
 PY
 
 # Expose and launch
 EXPOSE 8000
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

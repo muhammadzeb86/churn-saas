@@ -5,10 +5,10 @@ from typing import Dict, Any
 import pandas as pd
 from pathlib import Path
 
-from backend.api.database import get_db
-from backend.models import Upload
-from backend.api.schemas.predict import PredictionResponse
-from backend.ml.predict import RetentionPredictor
+from api.database import get_db
+from models import Upload
+from api.schemas.predict import PredictionResponse
+from ml.predict import RetentionPredictor
 
 router = APIRouter()
 

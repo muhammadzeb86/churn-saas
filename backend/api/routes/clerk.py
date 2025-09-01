@@ -11,9 +11,9 @@ import os
 import logging
 from typing import Optional
 
-from backend.api.database import get_db
-from backend.models import User
-from backend.schemas.clerk import ClerkWebhookPayload, WebhookResponse, UserCreate, UserUpdate
+from api.database import get_db
+from models import User
+from schemas.clerk import ClerkWebhookPayload, WebhookResponse, UserCreate, UserUpdate
 
 logger = logging.getLogger(__name__)
 
