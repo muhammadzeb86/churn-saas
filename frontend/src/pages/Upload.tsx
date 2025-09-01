@@ -1,13 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { Upload as UploadIcon, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { uploadAPI } from '../services/api';
 
 interface UploadResponse {
-  id: string;
-  filename: string;
-  created_at: string;
-  status: string;
+  success: boolean;
+  message: string;
+  upload_id?: number;
+  object_key?: string;
+  filename?: string;
+  file_size?: number;
 }
 
 const Upload: React.FC = () => {
@@ -17,7 +19,8 @@ const Upload: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [previousUploads, setPreviousUploads] = useState<UploadResponse[]>([]);
+  const [uploadResponse, setUploadResponse] = useState<UploadResponse | null>(null);
+  const [previousUploads, setPreviousUploads] = useState<any[]>([]);
 
   useEffect(() => {
     fetchPreviousUploads();
@@ -36,8 +39,8 @@ const Upload: React.FC = () => {
     if (!file.name.endsWith('.csv')) {
       return 'Please upload a CSV file';
     }
-    if (file.size > 5 * 1024 * 1024) {
-      return 'File size must be less than 5MB';
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit to match backend
+      return 'File size must be less than 10MB';
     }
     return null;
   };
@@ -62,6 +65,7 @@ const Upload: React.FC = () => {
     setUploading(true);
     setError(null);
     setSuccess(false);
+    setUploadResponse(null);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -72,23 +76,37 @@ const Upload: React.FC = () => {
       console.log('Upload successful:', response.data);
       
       setSuccess(true);
+      setUploadResponse(response.data);
       setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
       await fetchPreviousUploads();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload error details:', err);
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      const errorMessage = err.response?.data?.detail || err.message || 'Upload failed. Please try again.';
+      setError(errorMessage);
     } finally {
       setUploading(false);
     }
   };
 
+  const clerkId = user?.id;
+  const isDisabled = !file || uploading || !clerkId;
+
   return (
     <div className="space-y-8">
       <div className="bg-white rounded-xl shadow-soft p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Dataset</h2>
+        
+        {!clerkId && (
+          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center space-x-2 text-yellow-700">
+              <AlertCircle size={16} />
+              <span className="text-sm">Please sign in to upload files.</span>
+            </div>
+          </div>
+        )}
         
         <div className="space-y-4">
           <div className="border-2 border-dashed border-gray-200 rounded-lg p-6">
@@ -96,18 +114,24 @@ const Upload: React.FC = () => {
               <UploadIcon className="h-12 w-12 text-gray-400" />
               <div className="text-center">
                 <p className="text-sm text-gray-600">
-                  Upload your customer dataset for retention analysis (CSV only, max 5MB)
+                  Upload your customer dataset for retention analysis (CSV only, max 10MB)
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
                   The file should contain customer data with relevant retention indicators
                 </p>
+                {clerkId && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    User ID: {clerkId}
+                  </p>
+                )}
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".csv"
                 onChange={handleFileChange}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100"
+                disabled={!clerkId}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100 disabled:opacity-50"
               />
             </div>
           </div>
@@ -119,23 +143,29 @@ const Upload: React.FC = () => {
             </div>
           )}
 
-          {success && (
+          {success && uploadResponse && (
             <div className="flex items-center space-x-2 text-green-600 bg-green-50 p-3 rounded-lg">
               <CheckCircle2 size={16} />
-              <span className="text-sm">Upload successful! View predictions when ready.</span>
+              <div className="text-sm">
+                <p>Upload successful!</p>
+                <p className="text-xs text-green-700 mt-1">
+                  Upload ID: {uploadResponse.upload_id} | File: {uploadResponse.filename} | Size: {uploadResponse.file_size} bytes
+                </p>
+              </div>
             </div>
           )}
 
           <button
             onClick={handleUpload}
-            disabled={!file || uploading}
-            className={`w-full py-2 px-4 rounded-lg font-medium ${
-              !file || uploading
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-primary-600 text-white hover:bg-primary-700'
-            }`}
+            disabled={isDisabled}
+            className={w-full py-2 px-4 rounded-lg font-medium }
           >
-            {uploading ? 'Uploading...' : 'Upload Dataset'}
+            {!clerkId 
+              ? 'Please sign in' 
+              : uploading 
+                ? 'Uploading...' 
+                : 'Upload Dataset'
+            }
           </button>
         </div>
       </div>
@@ -144,9 +174,9 @@ const Upload: React.FC = () => {
         <div className="bg-white rounded-xl shadow-soft p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Previous Uploads</h3>
           <div className="space-y-4">
-            {previousUploads.map((upload) => (
+            {previousUploads.map((upload, index) => (
               <div
-                key={upload.id}
+                key={upload.id || index}
                 className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
               >
                 <div className="flex items-center space-x-3">
@@ -154,18 +184,14 @@ const Upload: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium text-gray-900">{upload.filename}</p>
                     <p className="text-xs text-gray-500">
-                      {new Date(upload.created_at).toLocaleDateString()}
+                      {upload.created_at ? new Date(upload.created_at).toLocaleDateString() : 'Unknown date'}
                     </p>
                   </div>
                 </div>
                 <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    upload.status === 'completed'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-yellow-100 text-yellow-700'
-                  }`}
+                  className={	ext-xs px-2 py-1 rounded-full }
                 >
-                  {upload.status}
+                  {upload.status || 'uploaded'}
                 </span>
               </div>
             ))}
@@ -176,4 +202,4 @@ const Upload: React.FC = () => {
   );
 };
 
-export default Upload; 
+export default Upload;
