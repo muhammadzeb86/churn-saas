@@ -3,13 +3,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 from sqlalchemy.exc import IntegrityError
-from api.database import get_db, init_db
-from models import User
+from backend.api.database import get_db, init_db
+from backend.models import User
 from user_schemas import UserCreate, UserResponse
 from typing import List
-from api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list
+from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list
 from fastapi.middleware.cors import CORSMiddleware
-from api.health import db_ping_ok
+from backend.api.health import db_ping_ok
 
 app = FastAPI(title="RetainWise Analytics API")
 

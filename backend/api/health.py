@@ -2,7 +2,7 @@
 Database health check utilities
 """
 from sqlalchemy import text
-from api.database import AsyncSessionMaker
+from backend.api.database import AsyncSessionMaker
 
 async def db_ping_ok() -> bool:
     """Test database connectivity with a simple ping query"""

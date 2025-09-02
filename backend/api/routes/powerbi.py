@@ -4,8 +4,8 @@ from typing import Dict
 import os
 import requests
 from datetime import datetime, timedelta
-# from api.dependencies import get_current_user  # TODO: Create this dependency
-from models import User
+# from backend.api.dependencies import get_current_user  # TODO: Create this dependency
+from backend.models import User
 
 router = APIRouter()
 
