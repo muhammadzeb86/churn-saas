@@ -5,7 +5,7 @@ from sqlalchemy import text, select
 from sqlalchemy.exc import IntegrityError
 from backend.api.database import get_db, init_db
 from backend.models import User
-from user_schemas import UserCreate, UserResponse
+from backend.user_schemas import UserCreate, UserResponse
 from typing import List
 from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list
 from fastapi.middleware.cors import CORSMiddleware
