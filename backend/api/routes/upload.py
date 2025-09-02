@@ -10,8 +10,8 @@ import logging
 
 from backend.api.database import get_db
 from backend.models import Upload, User
-from services.s3_service import s3_service
-from schemas.upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
+from backend.services.s3_service import s3_service
+from backend.schemas.upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
 
 logger = logging.getLogger(__name__)
 

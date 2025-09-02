@@ -10,7 +10,7 @@ import re
 
 from backend.api.database import get_db
 from backend.models import Lead
-from schemas import WaitlistRequest, WaitlistResponse
+from backend.schemas.waitlist import WaitlistRequest, WaitlistResponse
 
 logger = logging.getLogger(__name__)
 

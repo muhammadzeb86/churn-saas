@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from load_data import load_telco_data
+from backend.ml.load_data import load_telco_data
 
 def clean_telco_data(df):
     """
