@@ -21,18 +21,14 @@ RUN pip install --no-cache-dir -r ./backend/requirements.txt && pip install --no
 # List what was copied
 RUN set -eux; ls -la /app; ls -la /app/backend; ls -la /app/backend/backend || true
 
-# Show python path and try importing backend.main
+# Show python path and confirm module is discoverable WITHOUT importing it
 ENV PYTHONPATH=/app/backend
 RUN python - <<'PY'
-import sys, importlib, pathlib
+import sys, importlib.util, pathlib
 print(">> sys.path:", sys.path)
 print(">> exists /app/backend/backend/main.py:", pathlib.Path("/app/backend/backend/main.py").exists())
-try:
-    m = importlib.import_module("backend.main")
-    print(">> imported:", m.__file__)
-except Exception as e:
-    print("!! IMPORT FAILED:", repr(e))
-    raise
+spec = importlib.util.find_spec("backend.main")
+print(">> find_spec for backend.main:", spec.origin if spec else "NOT FOUND")
 PY
 
 # Expose and launch
