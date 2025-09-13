@@ -13,7 +13,7 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
-    config.headers.Authorization = Bearer ;
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -52,7 +52,7 @@ export const uploadAPI = {
 
 export const predictionsAPI = {
   getPredictions: () => api.get('/predictions'),
-  downloadPredictions: (id: string) => api.get(/download_predictions/, {
+  downloadPredictions: (id: string) => api.get(`/download_predictions/${id}`, {
     responseType: 'blob',
   }),
 };
@@ -62,6 +62,6 @@ export const powerbiAPI = {
 };
 
 // Helper function to get the full API URL for endpoints
-export const getApiUrl = (endpoint: string) => ${API_URL};
+export const getApiUrl = (endpoint: string) => `${API_URL}${endpoint}`;
 
 export default api;

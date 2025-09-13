@@ -158,7 +158,7 @@ const Upload: React.FC = () => {
           <button
             onClick={handleUpload}
             disabled={isDisabled}
-            className={w-full py-2 px-4 rounded-lg font-medium }
+            className="w-full py-2 px-4 rounded-lg font-medium"
           >
             {!clerkId 
               ? 'Please sign in' 
