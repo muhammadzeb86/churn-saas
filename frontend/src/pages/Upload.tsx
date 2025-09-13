@@ -189,7 +189,7 @@ const Upload: React.FC = () => {
                   </div>
                 </div>
                 <span
-                  className={	ext-xs px-2 py-1 rounded-full }
+                  className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800"
                 >
                   {upload.status || 'uploaded'}
                 </span>
