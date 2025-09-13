@@ -16,7 +16,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 COPY . ./backend/
 
 # Install backend deps
-RUN pip install --no-cache-dir -r ./backend/requirements.txt && pip install --no-cache-dir email-validator
+RUN pip install --no-cache-dir -r ./backend/requirements.txt && pip install --no-cache-dir email-validator boto3
 
 # List what was copied
 RUN set -eux; ls -la /app; ls -la /app/backend; ls -la /app/backend/backend || true
