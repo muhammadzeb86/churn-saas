@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y \
 # Add Rust to PATH
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Copy entire repo into correct backend package structure
-COPY . ./backend/backend/
+# Copy backend directory contents to create proper package structure
+# When built from repo root, copy only backend/ contents
+COPY backend/ ./backend/backend/
 
 # Install backend deps
 RUN pip install --no-cache-dir -r ./backend/backend/requirements.txt && pip install --no-cache-dir email-validator boto3
