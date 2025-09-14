@@ -1,0 +1,8 @@
+{
+  \"containerOverrides\": [
+    {
+      \"name\": \"retainwise-backend\",
+      \"command\": [\"python\", \"-c\", \"import os; print('Current:', os.getcwd()); print('Backend exists:', os.path.exists('/app/backend')); print('alembic.ini exists:', os.path.exists('/app/backend/alembic.ini')); os.chdir('/app/backend'); print('Changed to:', os.getcwd()); import subprocess; result = subprocess.run(['alembic', 'current'], capture_output=True, text=True); print('Alembic result:', result.returncode, result.stdout, result.stderr)\"]
+    }
+  ]
+}

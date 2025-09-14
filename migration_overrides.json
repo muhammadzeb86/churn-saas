@@ -1,8 +1,8 @@
-{
+﻿{
   "containerOverrides": [
     {
       "name": "retainwise-backend",
-      "command": ["alembic", "upgrade", "head"]
+      "command": ["sh", "-c", "cd /app/backend && python scripts/run_migrations.py"]
     }
   ]
-} 
+}

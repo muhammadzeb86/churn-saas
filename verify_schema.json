@@ -1,0 +1,1 @@
+{"containerOverrides":[{"name":"retainwise-backend","command":["psql","$DATABASE_URL","-c","\\d+ predictions"]}]}
