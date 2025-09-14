@@ -1,3 +1,4 @@
+﻿# -*- coding: utf-8 -*-
 """
 Alembic environment configuration for RetainWise Analytics database migrations
 """
@@ -9,7 +10,6 @@ from alembic import context
 
 # Import your models here for 'autogenerate' support
 from backend.api.database import Base
-from backend.models import User, Upload
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -100,4 +100,4 @@ def run_migrations_online() -> None:
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online() 
+    run_migrations_online()
