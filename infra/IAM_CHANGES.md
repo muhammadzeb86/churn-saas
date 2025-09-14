@@ -15,7 +15,7 @@
 
 ### IAM Policy Attachment
 - **Resource Name:** `aws_iam_role_policy_attachment.backend_sqs_send`
-- **Target Role:** `retainwise-backend-task-role` *(verify actual role name)*
+- **Target Role:** `retainwise-ecs-task-role` *(verified actual role name)*
 - **Policy ARN:** References `aws_iam_policy.backend_sqs_send.arn`
 
 ## Manual Steps Required
@@ -26,11 +26,11 @@ Before applying Terraform, confirm the actual ECS task role name:
 aws iam list-roles --query "Roles[?contains(RoleName, 'retainwise') && contains(RoleName, 'task')].RoleName"
 ```
 
-### 2. Update Terraform Variable
-Update the role name in `infra/sqs-predictions.tf`:
+### 2. ✅ Terraform Updated
+The role name has been updated in `infra/sqs-predictions.tf`:
 ```hcl
 resource "aws_iam_role_policy_attachment" "backend_sqs_send" {
-  role       = "ACTUAL_ROLE_NAME_HERE"  # Replace with actual role name
+  role       = "retainwise-ecs-task-role"  # Verified actual role name
   policy_arn = aws_iam_policy.backend_sqs_send.arn
 }
 ```

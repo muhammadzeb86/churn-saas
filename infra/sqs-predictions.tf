@@ -45,7 +45,7 @@ resource "aws_iam_policy" "backend_sqs_send" {
 
 # Attach SQS policy to existing backend ECS task role
 resource "aws_iam_role_policy_attachment" "backend_sqs_send" {
-  role       = "retainwise-backend-task-role"  # Replace with actual role name
+  role       = "retainwise-ecs-task-role"  # Verified actual role name
   policy_arn = aws_iam_policy.backend_sqs_send.arn
 }
 
