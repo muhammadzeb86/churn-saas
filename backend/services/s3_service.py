@@ -154,6 +154,47 @@ class S3Service:
             logger.error(f"Failed to generate download URL: {str(e)}")
             return None
     
+    def generate_presigned_url(self, object_key: str, expires_in: int = 3600, 
+                              http_method: str = 'GET', content_disposition: str = None) -> str:
+        """
+        Generate a presigned URL for file operations with advanced options
+        
+        Args:
+            object_key: S3 object key
+            expires_in: URL expiration time in seconds
+            http_method: HTTP method ('GET', 'PUT', etc.)
+            content_disposition: Content-Disposition header for downloads
+            
+        Returns:
+            Presigned URL
+            
+        Raises:
+            Exception: If URL generation fails
+        """
+        try:
+            operation = 'get_object' if http_method.upper() == 'GET' else 'put_object'
+            
+            params = {
+                'Bucket': self.bucket_name,
+                'Key': object_key
+            }
+            
+            # Add Content-Disposition if specified (for downloads)
+            if content_disposition and http_method.upper() == 'GET':
+                params['ResponseContentDisposition'] = content_disposition
+            
+            url = self.s3_client.generate_presigned_url(
+                operation,
+                Params=params,
+                ExpiresIn=expires_in
+            )
+            
+            return url
+            
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL for {object_key}: {str(e)}")
+            raise
+    
     def delete_file(self, object_key: str) -> bool:
         """
         Delete a file from S3
