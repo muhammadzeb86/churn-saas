@@ -121,6 +121,7 @@ class Prediction(Base):
     )
     user_id: Mapped[str] = mapped_column(
         String(255), 
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False, 
         index=True
     )
