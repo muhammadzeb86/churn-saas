@@ -10,6 +10,7 @@ from typing import List
 from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api.health import db_ping_ok
+from backend.core.config import settings
 
 app = FastAPI(title="RetainWise Analytics API")
 
@@ -37,13 +38,31 @@ app.include_router(clerk.router)  # Clerk webhook routes are at /api/clerk/*
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup - handle failures gracefully"""
+    """Initialize application on startup"""
+    # Log configuration
+    settings.log_config()
+    
+    # Initialize database
     try:
         await init_db()
         print("Database initialized successfully")
     except Exception as e:
         print(f"Database initialization failed: {e}")
         print("Application will continue running, but database operations may fail")
+    
+    # Test SQS connection in production
+    if settings.ENVIRONMENT == "production" and settings.PREDICTIONS_QUEUE_URL:
+        try:
+            sqs_client = settings.get_boto3_sqs()
+            # Test connection by getting queue attributes
+            sqs_client.get_queue_attributes(
+                QueueUrl=settings.PREDICTIONS_QUEUE_URL,
+                AttributeNames=['QueueArn']
+            )
+            print("SQS connection verified successfully")
+        except Exception as e:
+            print(f"SQS connection failed: {e}")
+            print("Prediction processing may not work properly")
 
 @app.get("/")
 async def root():

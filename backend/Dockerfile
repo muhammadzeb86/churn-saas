@@ -31,6 +31,10 @@ spec = importlib.util.find_spec("backend.main")
 print(">> find_spec for backend.main:", spec.origin if spec else "NOT FOUND")
 PY
 
+# Environment variables (set by ECS task definition)
+# Required: DATABASE_URL, AWS_REGION, PREDICTIONS_QUEUE_URL, S3_BUCKET
+ENV ENVIRONMENT=production
+
 # Expose and launch
 EXPOSE 8000
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
