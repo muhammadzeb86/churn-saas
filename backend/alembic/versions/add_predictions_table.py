@@ -23,7 +23,7 @@ def upgrade() -> None:
 
     # 1) Create enum type if missing (safe re-run)
     op.execute("""
-    DO }
+    DO backend/alembic/versions/add_predictions_table.py
     BEGIN
       IF NOT EXISTS (
         SELECT 1
@@ -33,7 +33,7 @@ def upgrade() -> None:
       ) THEN
         CREATE TYPE predictionstatus AS ENUM ('QUEUED','RUNNING','COMPLETED','FAILED');
       END IF;
-    END};
+    ENDbackend/alembic/versions/add_predictions_table.py;
     """)
 
     # 2) Create table only if it doesn't exist (safe re-run)
@@ -64,7 +64,7 @@ def downgrade() -> None:
 
     # Drop enum only if no columns still use it
     op.execute("""
-    DO }
+    DO backend/alembic/versions/add_predictions_table.py
     BEGIN
       IF NOT EXISTS (
         SELECT 1
@@ -73,5 +73,5 @@ def downgrade() -> None:
       ) THEN
         DROP TYPE IF EXISTS predictionstatus;
       END IF;
-    END};
+    ENDbackend/alembic/versions/add_predictions_table.py;
     """)
