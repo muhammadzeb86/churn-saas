@@ -1,7 +1,16 @@
 from datetime import datetime
-from sqlalchemy import String, Integer, DateTime, Index, ForeignKey, Text, Column, Boolean
+import uuid
+import enum
+from sqlalchemy import String, Integer, DateTime, Index, ForeignKey, Text, Column, Boolean, Enum, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.api.database import Base
+
+class PredictionStatus(enum.Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING" 
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 class User(Base):
     __tablename__ = "users"
@@ -25,8 +34,9 @@ class User(Base):
         onupdate=datetime.utcnow
     )
 
-    # Relationship to uploads
+    # Relationships
     uploads: Mapped[list["Upload"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    predictions: Mapped[list["Prediction"]] = relationship("Prediction", back_populates="user", cascade="all, delete-orphan")
 
     # Create indexes on email and clerk_id
     __table_args__ = (
@@ -69,8 +79,9 @@ class Upload(Base):
         onupdate=datetime.utcnow
     )
 
-    # Relationship to user
+    # Relationships
     user: Mapped["User"] = relationship(back_populates="uploads")
+    predictions: Mapped[list["Prediction"]] = relationship("Prediction", back_populates="upload", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"Upload(id={self.id}, filename={self.filename}, user_id={self.user_id}, status={self.status})"
@@ -94,4 +105,62 @@ class Lead(Base):
     )
 
     def __repr__(self) -> str:
-        return f"Lead(id={self.id}, email={self.email}, source={self.source}, converted={self.converted_to_user})" 
+        return f"Lead(id={self.id}, email={self.email}, source={self.source}, converted={self.converted_to_user})"
+
+class Prediction(Base):
+    __tablename__ = "predictions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
+    upload_id: Mapped[int] = mapped_column(
+        ForeignKey("uploads.id", ondelete="CASCADE"), 
+        nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(255), 
+        nullable=False, 
+        index=True
+    )
+    status: Mapped[PredictionStatus] = mapped_column(
+        Enum(PredictionStatus),
+        nullable=False,
+        default=PredictionStatus.QUEUED
+    )
+    s3_output_key: Mapped[str] = mapped_column(
+        String(1024), 
+        nullable=True
+    )
+    rows_processed: Mapped[int] = mapped_column(
+        Integer, 
+        nullable=False, 
+        default=0
+    )
+    metrics_json: Mapped[dict] = mapped_column(
+        JSON, 
+        nullable=True
+    )
+    error_message: Mapped[str] = mapped_column(
+        Text, 
+        nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+
+    # Relationships
+    upload: Mapped["Upload"] = relationship("Upload", back_populates="predictions")
+    user: Mapped["User"] = relationship("User", back_populates="predictions")
+
+    def __repr__(self) -> str:
+        return f"Prediction(id={self.id}, upload_id={self.upload_id}, status={self.status.value})"
