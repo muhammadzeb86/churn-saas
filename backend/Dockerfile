@@ -12,21 +12,21 @@ RUN apt-get update && apt-get install -y \
 # Add Rust to PATH
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Copy entire repo into backend subdirectory
-COPY . ./backend/
+# Copy entire repo into correct backend package structure
+COPY . ./backend/backend/
 
 # Install backend deps
-RUN pip install --no-cache-dir -r ./backend/requirements.txt && pip install --no-cache-dir email-validator boto3
+RUN pip install --no-cache-dir -r ./backend/backend/requirements.txt && pip install --no-cache-dir email-validator boto3
 
 # List what was copied
 RUN set -eux; ls -la /app; ls -la /app/backend; ls -la /app/backend/backend || true
 
-# Show python path and confirm module is discoverable WITHOUT importing it
+# Show python path and confirm module is discoverable WITHOUT importing it  
 ENV PYTHONPATH=/app
 RUN python - <<'PY'
 import sys, importlib.util, pathlib
 print(">> sys.path:", sys.path)
-print(">> exists /app/backend/main.py:", pathlib.Path("/app/backend/main.py").exists())
+print(">> exists /app/backend/backend/main.py:", pathlib.Path("/app/backend/backend/main.py").exists())
 spec = importlib.util.find_spec("backend.main")
 print(">> find_spec for backend.main:", spec.origin if spec else "NOT FOUND")
 PY
