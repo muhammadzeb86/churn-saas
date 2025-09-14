@@ -13,6 +13,10 @@ class UploadResponse(BaseModel):
     object_key: Optional[str] = None
     filename: Optional[str] = None
     file_size: Optional[int] = None
+    # Prediction fields
+    prediction_id: Optional[str] = None
+    prediction_status: Optional[str] = None
+    publish_warning: Optional[bool] = None
 
 class PresignedUrlResponse(BaseModel):
     """Response schema for presigned URL generation"""

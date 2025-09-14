@@ -9,9 +9,11 @@ from typing import Optional
 import logging
 
 from backend.api.database import get_db
-from backend.models import Upload, User
+from backend.models import Upload, User, Prediction, PredictionStatus
 from backend.services.s3_service import s3_service
+from backend.services.sqs_service import publish_prediction_task
 from backend.schemas.upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
+from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -113,18 +115,74 @@ async def upload_csv(
             
             logger.info(f"Saved file locally: {file_path}")
         
-        # Store upload record in database
-        upload_record = Upload(
-            filename=file.filename,
-            s3_object_key=upload_result["object_key"],
-            file_size=upload_result["size"],
-            user_id=user_id,
-            status="uploaded"
-        )
+        # Begin transaction - create Upload and Prediction records
+        try:
+            # Create upload record
+            upload_record = Upload(
+                filename=file.filename,
+                s3_object_key=upload_result["object_key"],
+                file_size=upload_result["size"],
+                user_id=user_id,
+                status="uploaded"
+            )
+            db.add(upload_record)
+            
+            # Flush to get upload_id
+            await db.flush()
+            
+            # Create prediction record
+            prediction_record = Prediction(
+                upload_id=upload_record.id,
+                user_id=user_id,
+                status=PredictionStatus.QUEUED
+            )
+            db.add(prediction_record)
+            
+            # Flush to get prediction_id
+            await db.flush()
+            
+            # Commit transaction
+            await db.commit()
+            await db.refresh(upload_record)
+            await db.refresh(prediction_record)
+            
+            logger.info(f"upload: created prediction - upload_id={upload_record.id}, prediction_id={prediction_record.id}, user_id={user_id}")
+            
+        except Exception as e:
+            await db.rollback()
+            logger.error(f"Database transaction failed: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to create upload and prediction records")
         
-        db.add(upload_record)
-        await db.commit()
-        await db.refresh(upload_record)
+        # After successful commit, publish to SQS
+        publish_warning = False
+        prediction_status = "QUEUED"
+        
+        try:
+            await publish_prediction_task(
+                queue_url=settings.PREDICTIONS_QUEUE_URL,
+                prediction_id=str(prediction_record.id),
+                upload_id=str(upload_record.id),
+                user_id=user_id,
+                s3_key=upload_result["object_key"]
+            )
+            logger.info(f"upload: published sqs message - prediction_id={prediction_record.id}, message_body={{upload_id: {upload_record.id}, s3_key: {upload_result['object_key']}}}")
+            
+        except Exception as e:
+            # SQS publish failed - update prediction status
+            logger.error(f"upload: publish failed - prediction_id={prediction_record.id}, error={str(e)}")
+            
+            try:
+                # Start new transaction to update prediction status
+                prediction_record.status = PredictionStatus.FAILED
+                prediction_record.error_message = f"SQS publish failed: {str(e)}"
+                db.add(prediction_record)
+                await db.commit()
+                
+                publish_warning = True
+                prediction_status = "FAILED"
+                
+            except Exception as db_error:
+                logger.error(f"Failed to update prediction status after SQS failure: {str(db_error)}")
         
         logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id}")
         
@@ -134,7 +192,10 @@ async def upload_csv(
             upload_id=upload_record.id,
             object_key=upload_result["object_key"],
             filename=file.filename,
-            file_size=upload_result["size"]
+            file_size=upload_result["size"],
+            prediction_id=str(prediction_record.id),
+            prediction_status=prediction_status,
+            publish_warning=publish_warning if publish_warning else None
         )
         
     except HTTPException:
