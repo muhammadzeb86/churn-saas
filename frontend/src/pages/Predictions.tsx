@@ -1,33 +1,73 @@
-import React, { useState, useEffect } from 'react';
-import { Download, FileSpreadsheet, AlertCircle, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Download, FileSpreadsheet, AlertCircle, ChevronRight, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { predictionsAPI } from '../services/api';
+import { useToast } from '../components/ui/use-toast';
 
-interface PredictionSummary {
+interface PredictionListItem {
   id: string;
-  filename: string;
-  upload_time: string;
-  churned_count: number;
-  total_rows: number;
-  at_risk_percentage: number;
-  status: 'completed' | 'processing' | 'failed';
+  upload_id: number;
+  status: string;
+  rows_processed: number;
+  created_at: string;
+  has_output: boolean;
+}
+
+interface PredictionListResponse {
+  success: boolean;
+  predictions: PredictionListItem[];
+  count: number;
 }
 
 const Predictions: React.FC = () => {
-  const [predictions, setPredictions] = useState<PredictionSummary[]>([]);
+  const { user } = useUser();
+  const { toast } = useToast();
+  const [predictions, setPredictions] = useState<PredictionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetchPredictions();
-  }, []);
+    if (user?.id) {
+      fetchPredictions();
+    }
+  }, [user?.id]);
+
+  // Start polling when component mounts if we have recent predictions
+  useEffect(() => {
+    if (predictions.length > 0) {
+      const hasActiveJobs = predictions.some(p => 
+        p.status === 'QUEUED' || p.status === 'RUNNING'
+      );
+      
+      if (hasActiveJobs && !polling) {
+        startPolling();
+      }
+    }
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [predictions, polling]);
 
   const fetchPredictions = async () => {
+    if (!user?.id) return;
+    
     try {
-      setLoading(true);
       setError(null);
-      const response = await predictionsAPI.getPredictions();
-      setPredictions(response.data);
+      const response = await predictionsAPI.getPredictions(user.id);
+      const data: PredictionListResponse = response.data;
+      
+      if (data.success) {
+        setPredictions(data.predictions);
+      } else {
+        setError('Failed to load predictions');
+      }
     } catch (err) {
       setError('Failed to load predictions. Please try again later.');
       console.error('Error fetching predictions:', err);
@@ -36,24 +76,126 @@ const Predictions: React.FC = () => {
     }
   };
 
-  const handleDownload = async (id: string) => {
-    try {
-      setDownloading(id);
-      const response = await predictionsAPI.downloadPredictions(id);
+  const startPolling = () => {
+    if (polling || !user?.id) return;
+    
+    setPolling(true);
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await predictionsAPI.getPredictions(user.id);
+        const data: PredictionListResponse = response.data;
+        
+        if (data.success) {
+          const oldPredictions = predictions;
+          const newPredictions = data.predictions;
+          
+          // Check for status changes
+          newPredictions.forEach(newPred => {
+            const oldPred = oldPredictions.find(p => p.id === newPred.id);
+            if (oldPred && oldPred.status !== newPred.status) {
+              if (newPred.status === 'COMPLETED') {
+                toast({
+                  title: 'Prediction Complete!',
+                  description: `Prediction for upload ${newPred.upload_id} has finished successfully.`,
+                });
+              } else if (newPred.status === 'FAILED') {
+                toast({
+                  variant: 'destructive',
+                  title: 'Prediction Failed',
+                  description: `Prediction for upload ${newPred.upload_id} has failed.`,
+                });
+              }
+            }
+          });
+          
+          setPredictions(newPredictions);
+          
+          // Stop polling if no active jobs
+          const hasActiveJobs = newPredictions.some(p => 
+            p.status === 'QUEUED' || p.status === 'RUNNING'
+          );
+          
+          if (!hasActiveJobs) {
+            stopPolling();
+          }
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 3000); // Poll every 3 seconds
+  };
 
-      const blob = new Blob([response.data]);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `predictions_${id}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (err) {
+  const stopPolling = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setPolling(false);
+  };
+
+  const handleDownload = async (predictionId: string) => {
+    if (!user?.id) return;
+    
+    try {
+      setDownloading(predictionId);
+      const response = await predictionsAPI.downloadPrediction(predictionId, user.id);
+      
+      // Handle redirect URL response
+      if (response.data.success && response.data.download_url) {
+        // Create a temporary link to trigger download
+        const link = document.createElement('a');
+        link.href = response.data.download_url;
+        link.download = `prediction_results_${predictionId}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast({
+          title: 'Download Started',
+          description: 'Your prediction results are being downloaded.',
+        });
+      }
+    } catch (err: any) {
       console.error('Error downloading predictions:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Download Failed',
+        description: err.response?.data?.detail || 'Failed to download prediction results.',
+      });
     } finally {
       setDownloading(null);
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'FAILED':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'RUNNING':
+        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+      case 'QUEUED':
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getStatusChip = (status: string) => {
+    const baseClasses = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium";
+    
+    switch (status) {
+      case 'COMPLETED':
+        return `${baseClasses} bg-green-100 text-green-800`;
+      case 'FAILED':
+        return `${baseClasses} bg-red-100 text-red-800`;
+      case 'RUNNING':
+        return `${baseClasses} bg-blue-100 text-blue-800`;
+      case 'QUEUED':
+        return `${baseClasses} bg-yellow-100 text-yellow-800`;
+      default:
+        return `${baseClasses} bg-gray-100 text-gray-800`;
     }
   };
 
@@ -87,10 +229,17 @@ const Predictions: React.FC = () => {
       <div className="min-h-[400px] flex items-center justify-center">
         <div className="text-center">
           <FileSpreadsheet className="h-8 w-8 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">No predictions available yet.</p>
+          <p className="text-gray-600">No predictions yet.</p>
           <p className="text-sm text-gray-500 mt-2">
             Upload a dataset to see predictions here.
           </p>
+          <Link 
+            to="/upload"
+            className="mt-4 inline-flex items-center text-primary-600 hover:text-primary-700 font-medium"
+          >
+            Go to Upload
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Link>
         </div>
       </div>
     );
@@ -100,11 +249,19 @@ const Predictions: React.FC = () => {
     <div className="space-y-6">
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
-          <h1 className="text-xl font-semibold text-gray-900">Customer Retention Predictions</h1>
+          <h1 className="text-xl font-semibold text-gray-900">ML Predictions</h1>
           <p className="mt-2 text-sm text-gray-700">
-            View and download retention predictions for your uploaded datasets
+            View and download machine learning prediction results
           </p>
         </div>
+        {polling && (
+          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+            <div className="inline-flex items-center text-sm text-blue-600">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking for updates...
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white shadow-soft rounded-lg overflow-hidden">
@@ -113,19 +270,16 @@ const Predictions: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  File
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Upload Time
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  At Risk
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Risk %
+                  Created
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Rows Processed
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Upload ID
                 </th>
                 <th scope="col" className="relative px-6 py-3">
                   <span className="sr-only">Actions</span>
@@ -135,68 +289,53 @@ const Predictions: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {predictions.map((prediction) => (
                 <tr key={prediction.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(prediction.created_at).toLocaleString()}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <FileSpreadsheet className="h-5 w-5 text-gray-400 mr-3" />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {prediction.filename}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {prediction.total_rows.toLocaleString()} rows
-                        </div>
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(prediction.status)}
+                      <span className={getStatusChip(prediction.status)}>
+                        {prediction.status}
+                      </span>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {prediction.rows_processed.toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(prediction.upload_time).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {prediction.churned_count.toLocaleString()}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {((prediction.churned_count / prediction.total_rows) * 100).toFixed(1)}%
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {prediction.at_risk_percentage.toFixed(1)}%
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      prediction.status === 'completed'
-                        ? 'bg-green-100 text-green-800'
-                        : prediction.status === 'processing'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {prediction.status.charAt(0).toUpperCase() + prediction.status.slice(1)}
-                    </span>
+                    #{prediction.upload_id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {prediction.status === 'completed' && (
-                      <div className="flex items-center justify-end space-x-4">
+                    <div className="flex items-center justify-end space-x-4">
+                      {prediction.status === 'COMPLETED' && prediction.has_output && (
                         <button
                           onClick={() => handleDownload(prediction.id)}
                           disabled={downloading === prediction.id}
                           className="text-primary-600 hover:text-primary-900 flex items-center"
                         >
                           {downloading === prediction.id ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary-600"></div>
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <>
                               <Download className="h-4 w-4 mr-1" />
-                              Download
+                              Download CSV
                             </>
                           )}
                         </button>
-                        <button className="text-gray-400 hover:text-gray-500">
-                          <ChevronRight className="h-5 w-5" />
+                      )}
+                      {prediction.status === 'FAILED' && (
+                        <button className="text-red-600 hover:text-red-900 text-sm">
+                          View Error
                         </button>
-                      </div>
-                    )}
+                      )}
+                      {(prediction.status === 'QUEUED' || prediction.status === 'RUNNING') && (
+                        <div className="flex items-center text-gray-500">
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          <span className="text-sm">Processing...</span>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -51,9 +51,14 @@ export const uploadAPI = {
 };
 
 export const predictionsAPI = {
-  getPredictions: () => api.get('/predictions'),
-  downloadPredictions: (id: string) => api.get(`/download_predictions/${id}`, {
-    responseType: 'blob',
+  getPredictions: (userId: string) => api.get('/predictions', {
+    params: { user_id: userId }
+  }),
+  getPredictionDetail: (id: string, userId: string) => api.get(`/predictions/${id}`, {
+    params: { user_id: userId }
+  }),
+  downloadPrediction: (id: string, userId: string) => api.get(`/download_predictions/${id}`, {
+    params: { user_id: userId }
   }),
 };
 

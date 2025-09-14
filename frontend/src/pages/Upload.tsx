@@ -1,7 +1,9 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useNavigate } from 'react-router-dom';
 import { Upload as UploadIcon, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { uploadAPI } from '../services/api';
+import { useToast } from '../components/ui/use-toast';
 
 interface UploadResponse {
   success: boolean;
@@ -10,10 +12,15 @@ interface UploadResponse {
   object_key?: string;
   filename?: string;
   file_size?: number;
+  prediction_id?: string;
+  prediction_status?: string;
+  publish_warning?: boolean;
 }
 
 const Upload: React.FC = () => {
   const { user } = useUser();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -82,6 +89,17 @@ const Upload: React.FC = () => {
         fileInputRef.current.value = '';
       }
       await fetchPreviousUploads();
+      
+      // Navigate to predictions page and show toast
+      setTimeout(() => {
+        navigate('/predictions');
+        if (response.data.prediction_id) {
+          toast({
+            title: 'Upload Successful!',
+            description: `File uploaded and prediction started. Prediction ID: ${response.data.prediction_id}`,
+          });
+        }
+      }, 1500); // Small delay to show success state
     } catch (err: any) {
       console.error('Upload error details:', err);
       const errorMessage = err.response?.data?.detail || err.message || 'Upload failed. Please try again.';
