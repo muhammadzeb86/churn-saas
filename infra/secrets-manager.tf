@@ -28,8 +28,8 @@ resource "aws_iam_policy" "secrets_manager_access" {
   }
 }
 
-# Attach Secrets Manager policy to ECS task role
-resource "aws_iam_role_policy_attachment" "ecs_task_secrets_manager" {
-  role       = aws_iam_role.ecs_task.name
+# Attach Secrets Manager policy to ECS task EXECUTION role (correct role for secrets)
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_secrets_manager" {
+  role       = aws_iam_role.ecs_task_execution.name
   policy_arn = aws_iam_policy.secrets_manager_access.arn
 } 

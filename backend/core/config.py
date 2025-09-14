@@ -23,8 +23,10 @@ class Settings:
     
     def __init__(self):
         """Validate required settings on initialization"""
+        # SQS is optional - will be enabled when queue is available
         if self.ENVIRONMENT == "production" and not self.PREDICTIONS_QUEUE_URL:
-            raise ValueError("PREDICTIONS_QUEUE_URL is required in production environment")
+            import logging
+            logging.getLogger(__name__).warning("PREDICTIONS_QUEUE_URL not set - SQS functionality disabled")
     
     def get_boto3_sqs(self):
         """Get configured boto3 SQS client"""

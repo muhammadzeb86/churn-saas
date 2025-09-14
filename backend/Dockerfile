@@ -22,11 +22,11 @@ RUN pip install --no-cache-dir -r ./backend/requirements.txt && pip install --no
 RUN set -eux; ls -la /app; ls -la /app/backend; ls -la /app/backend/backend || true
 
 # Show python path and confirm module is discoverable WITHOUT importing it
-ENV PYTHONPATH=/app/backend
+ENV PYTHONPATH=/app
 RUN python - <<'PY'
 import sys, importlib.util, pathlib
 print(">> sys.path:", sys.path)
-print(">> exists /app/backend/backend/main.py:", pathlib.Path("/app/backend/backend/main.py").exists())
+print(">> exists /app/backend/main.py:", pathlib.Path("/app/backend/main.py").exists())
 spec = importlib.util.find_spec("backend.main")
 print(">> find_spec for backend.main:", spec.origin if spec else "NOT FOUND")
 PY

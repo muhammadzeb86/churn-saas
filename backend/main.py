@@ -51,7 +51,7 @@ async def startup_event():
         print(f"Database initialization failed: {e}")
         print("Application will continue running, but database operations may fail")
     
-    # Test SQS connection in production
+    # Test SQS connection in production (if configured)
     if settings.ENVIRONMENT == "production" and settings.PREDICTIONS_QUEUE_URL:
         try:
             sqs_client = settings.get_boto3_sqs()
@@ -64,6 +64,8 @@ async def startup_event():
         except Exception as e:
             print(f"SQS connection failed: {e}")
             print("Prediction processing may not work properly")
+    elif settings.ENVIRONMENT == "production":
+        print("SQS not configured - prediction processing disabled")
 
 @app.get("/")
 async def root():

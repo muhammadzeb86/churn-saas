@@ -153,36 +153,39 @@ async def upload_csv(
             logger.error(f"Database transaction failed: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to create upload and prediction records")
         
-        # After successful commit, publish to SQS
+        # After successful commit, publish to SQS (if available)
         publish_warning = False
         prediction_status = "QUEUED"
         
-        try:
-            await publish_prediction_task(
-                queue_url=settings.PREDICTIONS_QUEUE_URL,
-                prediction_id=str(prediction_record.id),
-                upload_id=str(upload_record.id),
-                user_id=user_id,
-                s3_key=upload_result["object_key"]
-            )
-            logger.info(f"upload: published sqs message - prediction_id={prediction_record.id}, message_body={{upload_id: {upload_record.id}, s3_key: {upload_result['object_key']}}}")
-            
-        except Exception as e:
-            # SQS publish failed - update prediction status
-            logger.error(f"upload: publish failed - prediction_id={prediction_record.id}, error={str(e)}")
-            
+        if settings.PREDICTIONS_QUEUE_URL:
             try:
-                # Start new transaction to update prediction status
-                prediction_record.status = PredictionStatus.FAILED
-                prediction_record.error_message = f"SQS publish failed: {str(e)}"
-                db.add(prediction_record)
-                await db.commit()
+                await publish_prediction_task(
+                    queue_url=settings.PREDICTIONS_QUEUE_URL,
+                    prediction_id=str(prediction_record.id),
+                    upload_id=str(upload_record.id),
+                    user_id=user_id,
+                    s3_key=upload_result["object_key"]
+                )
+                logger.info(f"upload: published sqs message - prediction_id={prediction_record.id}, message_body={{upload_id: {upload_record.id}, s3_key: {upload_result['object_key']}}}")
                 
-                publish_warning = True
-                prediction_status = "FAILED"
+            except Exception as e:
+                # SQS publish failed - update prediction status
+                logger.error(f"upload: publish failed - prediction_id={prediction_record.id}, error={str(e)}")
                 
-            except Exception as db_error:
-                logger.error(f"Failed to update prediction status after SQS failure: {str(db_error)}")
+                try:
+                    # Start new transaction to update prediction status
+                    prediction_record.status = PredictionStatus.FAILED
+                    prediction_record.error_message = f"SQS publish failed: {str(e)}"
+                    db.add(prediction_record)
+                    await db.commit()
+                    
+                    publish_warning = True
+                    prediction_status = "FAILED"
+                    
+                except Exception as db_error:
+                    logger.error(f"Failed to update prediction status after SQS failure: {str(db_error)}")
+        else:
+            logger.info(f"upload: SQS disabled - prediction {prediction_record.id} created but not queued for processing")
         
         logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id}")
         
