@@ -1,0 +1,12 @@
+{
+  "containerOverrides": [
+    {
+      "name": "retainwise-backend",
+      "command": [
+        "python", 
+        "-c", 
+        "from backend.api.database import Base; from backend.models import User, Upload, Prediction, Lead; print('✅ Models imported successfully'); print('📋 Tables discovered:'); [print(f'  - {table.name}') for table in Base.metadata.tables.values()]; print(f'🎯 Total tables: {len(Base.metadata.tables)}')"
+      ]
+    }
+  ]
+} 

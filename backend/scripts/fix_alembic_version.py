@@ -8,7 +8,7 @@ import sys
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from backend.api.database import get_async_session
+from backend.api.database import AsyncSessionMaker
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ async def fix_alembic_version():
     try:
         logger.info("Starting alembic version fix...")
         
-        async with get_async_session() as db:
+        async with AsyncSessionMaker() as db:
             # Check current version
             result = await db.execute(text("SELECT version_num FROM alembic_version"))
             current_version = result.scalar_one_or_none()

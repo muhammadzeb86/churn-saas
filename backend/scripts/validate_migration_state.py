@@ -9,7 +9,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from backend.api.database import get_async_session
+from backend.api.database import AsyncSessionMaker
 from backend.models import User, Upload, Prediction, Lead, PredictionStatus
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ async def validate_migration_state():
         logger.info("Starting comprehensive migration validation...")
         
         # Check 1: Database connection
-        async with get_async_session() as db:
+        async with AsyncSessionMaker() as db:
             logger.info("✅ Database connection successful")
             
             # Check 2: Alembic version table
