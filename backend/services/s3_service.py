@@ -213,6 +213,40 @@ class S3Service:
             logger.error(f"Failed to delete file {object_key}: {str(e)}")
             return False
     
+    def download_file(self, object_key: str, local_path: str) -> Dict[str, Any]:
+        """
+        Download a file from S3 to local path
+        
+        Args:
+            object_key: S3 object key
+            local_path: Local file path to save to
+            
+        Returns:
+            Dict containing success status and error info
+        """
+        try:
+            self.s3_client.download_file(self.bucket_name, object_key, local_path)
+            logger.info(f"Successfully downloaded {object_key} to {local_path}")
+            return {
+                "success": True,
+                "local_path": local_path,
+                "object_key": object_key
+            }
+        except ClientError as e:
+            error_msg = f"S3 download failed: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+        except Exception as e:
+            error_msg = f"Download failed: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+    
     def file_exists(self, object_key: str) -> bool:
         """
         Check if a file exists in S3

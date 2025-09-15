@@ -17,6 +17,7 @@ class Settings:
     
     # S3 Configuration (existing)
     S3_BUCKET: str = os.getenv("S3_BUCKET", "retainwise-uploads")
+    PREDICTIONS_BUCKET: str = os.getenv("PREDICTIONS_BUCKET", os.getenv("S3_BUCKET", "retainwise-uploads"))
     
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")

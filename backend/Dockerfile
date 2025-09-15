@@ -38,4 +38,7 @@ ENV ENVIRONMENT=production
 
 # Expose and launch
 EXPOSE 8000
+
+# Default CMD for API server
+# For worker mode, override with: CMD ["python", "-m", "backend.worker_main"]
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
