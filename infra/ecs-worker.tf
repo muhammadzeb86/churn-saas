@@ -30,7 +30,7 @@ data "aws_iam_policy_document" "worker_permissions" {
     ]
     
     resources = [
-      "${data.aws_s3_bucket.uploads.arn}/*"
+      "${aws_s3_bucket.uploads.arn}/*"
     ]
   }
   
@@ -44,7 +44,7 @@ data "aws_iam_policy_document" "worker_permissions" {
     ]
     
     resources = [
-      data.aws_s3_bucket.uploads.arn
+      aws_s3_bucket.uploads.arn
     ]
   }
 }
@@ -77,8 +77,8 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
   memory                  = 512
   
   # Use same execution role as backend
-  execution_role_arn = data.aws_iam_role.ecs_execution_role.arn
-  task_role_arn      = data.aws_iam_role.ecs_task_role.arn
+  execution_role_arn = aws_iam_role.ecs_task_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
 
   container_definitions = jsonencode([
     {
@@ -102,19 +102,15 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
           name  = "PREDICTIONS_QUEUE_URL"
           value = aws_sqs_queue.predictions.url
         },
-        {
-          name  = "S3_BUCKET"
-          value = data.aws_s3_bucket.uploads.bucket
-        }
-      ]
-      
-      # Database URL from Secrets Manager
-      secrets = [
-        {
-          name      = "DATABASE_URL"
-          valueFrom = aws_secretsmanager_secret.database_url.arn
-        }
-      ]
+                          {
+           name  = "S3_BUCKET"
+           value = aws_s3_bucket.uploads.bucket
+         },
+         {
+           name  = "DATABASE_URL"
+           value = "postgresql://${aws_db_instance.main.username}:${aws_db_instance.main.password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+         }
+       ]
       
       # CloudWatch Logs
       logConfiguration = {
@@ -164,15 +160,9 @@ resource "aws_ecs_service" "retainwise_worker" {
   
   # Network configuration
   network_configuration {
-    subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-    security_groups  = [aws_security_group.ecs_tasks.id]
+    subnets          = [data.aws_subnet.public_1.id, data.aws_subnet.public_2.id]
+    security_groups  = [aws_security_group.ecs.id]
     assign_public_ip = true
-  }
-  
-  # Deployment configuration
-  deployment_configuration {
-    maximum_percent         = 200
-    minimum_healthy_percent = 0  # Allow complete replacement for workers
   }
   
   # Depend on queue and IAM policies
