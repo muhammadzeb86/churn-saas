@@ -1,0 +1,8 @@
+{
+  "containerOverrides": [
+    {
+      "name": "retainwise-backend",
+      "command": ["python", "backend/scripts/validate_migration_state.py"]
+    }
+  ]
+} 

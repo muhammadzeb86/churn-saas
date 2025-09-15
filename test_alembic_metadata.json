@@ -1,0 +1,12 @@
+{
+  "containerOverrides": [
+    {
+      "name": "retainwise-backend",
+      "command": [
+        "python", 
+        "-c", 
+        "from backend.alembic.env import target_metadata; print('Tables discovered by Alembic:'); [print(f'  - {table.name}') for table in target_metadata.tables.values()]; print(f'Total tables: {len(target_metadata.tables)}')"
+      ]
+    }
+  ]
+} 
