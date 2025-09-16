@@ -82,7 +82,7 @@ class S3Service:
                 "error": f"Upload failed: {str(e)}"
             }
     
-    def generate_presigned_url(self, user_id: str, filename: str, expiration: int = 3600) -> Dict[str, Any]:
+    def generate_presigned_upload_url(self, user_id: str, filename: str, expiration: int = 3600) -> Dict[str, Any]:
         """
         Generate a presigned URL for direct client-side uploads
         
@@ -154,7 +154,7 @@ class S3Service:
             logger.error(f"Failed to generate download URL: {str(e)}")
             return None
     
-    def generate_presigned_url(self, object_key: str, expires_in: int = 3600, 
+    def generate_presigned_download_url(self, object_key: str, expires_in: int = 3600, 
                               http_method: str = 'GET', content_disposition: str = None) -> str:
         """
         Generate a presigned URL for file operations with advanced options

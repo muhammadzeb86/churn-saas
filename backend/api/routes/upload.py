@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import Optional
+from typing import Optional, Dict, Any
 import logging
 
 from backend.api.database import get_db
@@ -14,6 +14,7 @@ from backend.services.s3_service import s3_service
 from backend.services.sqs_service import publish_prediction_task
 from backend.schemas.upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
 from backend.core.config import settings
+from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 async def upload_csv(
     file: UploadFile = File(...),
     user_id: str = Form(...),
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -38,6 +40,9 @@ async def upload_csv(
     """
     logger.info(f"Received upload request for user_id: {user_id}, filename: {file.filename}")
     try:
+        # Verify user has access to upload for this user_id
+        require_user_ownership(user_id, current_user)
+        
         # Validate file type
         if not file.filename.lower().endswith('.csv'):
             raise HTTPException(
@@ -214,6 +219,7 @@ async def upload_csv(
 async def get_presigned_upload_url(
     filename: str = Form(...),
     user_id: str = Form(...),
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: Session = Depends(get_db)
 ):
     """
@@ -228,6 +234,9 @@ async def get_presigned_upload_url(
         Presigned URL response for direct upload
     """
     try:
+        # Verify user has access to upload for this user_id
+        require_user_ownership(user_id, current_user)
+        
         # Validate filename
         if not filename.lower().endswith('.csv'):
             raise HTTPException(
@@ -244,7 +253,7 @@ async def get_presigned_upload_url(
             )
         
         # Generate presigned URL
-        presigned_result = s3_service.generate_presigned_url(
+        presigned_result = s3_service.generate_presigned_upload_url(
             user_id=user_id,
             filename=filename
         )
@@ -279,6 +288,7 @@ async def confirm_upload(
     user_id: str = Form(...),
     filename: str = Form(...),
     file_size: Optional[int] = Form(None),
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: Session = Depends(get_db)
 ):
     """
@@ -298,6 +308,9 @@ async def confirm_upload(
         Confirmation response
     """
     try:
+        # Verify user has access to confirm upload for this user_id
+        require_user_ownership(user_id, current_user)
+        
         # Check if user exists
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -346,6 +359,7 @@ async def confirm_upload(
 @router.get("/files/{user_id}")
 async def get_user_uploads(
     user_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: Session = Depends(get_db)
 ):
     """
@@ -359,6 +373,9 @@ async def get_user_uploads(
         List of user's uploads
     """
     try:
+        # Verify user has access to view uploads for this user_id
+        require_user_ownership(user_id, current_user)
+        
         # Check if user exists
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -402,6 +419,7 @@ async def get_user_uploads(
 
 @router.get("/uploads")
 async def get_uploads(
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: Session = Depends(get_db)
 ):
     """

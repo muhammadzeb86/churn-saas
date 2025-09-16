@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from typing import Dict
+from typing import Dict, Any
 import os
 import requests
 from datetime import datetime, timedelta
-# from backend.api.dependencies import get_current_user  # TODO: Create this dependency
+from backend.auth.middleware import get_current_user_dev_mode
 from backend.models import User
 
 router = APIRouter()
@@ -16,7 +16,7 @@ CLIENT_SECRET = os.getenv("POWERBI_CLIENT_SECRET")
 TENANT_ID = os.getenv("POWERBI_TENANT_ID")
 
 @router.get("/embed-token", response_model=Dict[str, str])
-async def get_embed_token():  # current_user: User = Depends(get_current_user)
+async def get_embed_token(current_user: Dict[str, Any] = Depends(get_current_user_dev_mode)):
     """Generate a Power BI embed token for the report."""
     try:
         # Get Azure AD token

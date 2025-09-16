@@ -35,7 +35,8 @@ const Upload: React.FC = () => {
 
   const fetchPreviousUploads = async () => {
     try {
-      const response = await uploadAPI.getUploads();
+      if (!user?.id) return;
+      const response = await uploadAPI.getUploads(user.id);
       setPreviousUploads(response.data);
     } catch (err) {
       console.error('Error fetching previous uploads:', err);

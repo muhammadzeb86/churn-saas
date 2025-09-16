@@ -4,13 +4,14 @@ Predictions API routes for managing ML prediction results
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import logging
 
 from backend.api.database import get_db
 from backend.models import Prediction, PredictionStatus
 from backend.services.s3_service import s3_service
 from backend.core.config import settings
+from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class DownloadUrlResponse(BaseModel):
 @router.get("/", response_model=PredictionListResponse)
 async def list_predictions(
     user_id: str = Query(..., description="User ID to filter predictions"),
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -76,6 +78,9 @@ async def list_predictions(
         List of predictions with basic information
     """
     try:
+        # Verify user has access to this data
+        require_user_ownership(user_id, current_user)
+        
         # Query latest 20 predictions for user
         stmt = (
             select(Prediction)
@@ -118,6 +123,7 @@ async def list_predictions(
 async def get_prediction_detail(
     prediction_id: str,
     user_id: str = Query(..., description="User ID for ownership verification"),
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -132,6 +138,9 @@ async def get_prediction_detail(
         Detailed prediction information
     """
     try:
+        # Verify user has access to this data
+        require_user_ownership(user_id, current_user)
+        
         # Query prediction by ID
         stmt = select(Prediction).where(Prediction.id == prediction_id)
         result = await db.execute(stmt)
@@ -184,6 +193,7 @@ async def get_prediction_detail(
 async def download_prediction_results(
     prediction_id: str,
     user_id: str = Query(..., description="User ID for ownership verification"),
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -198,6 +208,9 @@ async def download_prediction_results(
         Presigned download URL
     """
     try:
+        # Verify user has access to this data
+        require_user_ownership(user_id, current_user)
+        
         # Query prediction by ID
         stmt = select(Prediction).where(Prediction.id == prediction_id)
         result = await db.execute(stmt)
@@ -233,7 +246,7 @@ async def download_prediction_results(
         expires_in = 600  # 10 minutes
         
         try:
-            presigned_url = s3_service.generate_presigned_url(
+            presigned_url = s3_service.generate_presigned_download_url(
                 object_key=prediction.s3_output_key,
                 expires_in=expires_in,
                 http_method='GET',

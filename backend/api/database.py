@@ -33,13 +33,21 @@ AsyncSessionMaker = async_session_maker
 class Base(DeclarativeBase):
     pass
 
-# Dependency to get async database session
+# Dependency to get async database session (for FastAPI)
 async def get_db() -> AsyncSession:
     async with AsyncSessionMaker() as session:
         try:
             yield session
         finally:
             await session.close()
+
+# Context manager to get async database session (for workers/services)
+def get_async_session():
+    """
+    Context manager for async database sessions
+    Used by workers and services outside of FastAPI request context
+    """
+    return AsyncSessionMaker()
 
 # Initialize database tables
 async def init_db():
@@ -51,7 +59,10 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
 
 # Export all the important names
-__all__ = ["engine", "Base", "async_session_maker", "AsyncSessionMaker", "AsyncSession", "get_db", "init_db"]
+__all__ = [
+    "engine", "Base", "async_session_maker", "AsyncSessionMaker", "AsyncSession", 
+    "get_db", "get_async_session", "init_db"
+]
 
 # Example of how to use the session in FastAPI endpoints:
 """

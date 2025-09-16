@@ -9,6 +9,7 @@ from backend.api.database import get_db
 from backend.models import Upload
 from backend.api.schemas.predict import PredictionResponse
 from backend.ml.predict import RetentionPredictor
+from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
 
 router = APIRouter()
 
@@ -16,7 +17,11 @@ router = APIRouter()
 predictor = RetentionPredictor()
 
 @router.post("/predict_retention", response_model=PredictionResponse)
-async def predict_retention(upload_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def predict_retention(
+    upload_id: int, 
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
     """
     Make retention predictions on uploaded data.
     
@@ -33,8 +38,12 @@ async def predict_retention(upload_id: int, db: Session = Depends(get_db)) -> Di
     try:
         # Get upload record from database
         upload = db.query(Upload).filter(Upload.id == upload_id).first()
+        
         if not upload:
-            raise HTTPException(status_code=404, detail=f"Upload ID {upload_id} not found")
+            raise HTTPException(status_code=404, detail="Upload not found")
+        
+        # Verify user has access to this upload
+        require_user_ownership(upload.user_id, current_user)
         
         # Check if file exists
         file_path = Path(upload.filename)
@@ -85,7 +94,11 @@ async def predict_retention(upload_id: int, db: Session = Depends(get_db)) -> Di
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/download_predictions/{upload_id}")
-async def download_predictions(upload_id: int, db: Session = Depends(get_db)):
+async def download_predictions(
+    upload_id: int, 
+    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    db: Session = Depends(get_db)
+):
     """
     Download predictions for a specific upload.
     
@@ -100,7 +113,10 @@ async def download_predictions(upload_id: int, db: Session = Depends(get_db)):
         # Get upload record from database
         upload = db.query(Upload).filter(Upload.id == upload_id).first()
         if not upload:
-            raise HTTPException(status_code=404, detail=f"Upload ID {upload_id} not found")
+            raise HTTPException(status_code=404, detail="Upload not found")
+        
+        # Verify user has access to this upload
+        require_user_ownership(upload.user_id, current_user)
             
         # Check if predictions exist
         predictions_path = Path("backend/ml/predictions") / f"predictions_{upload_id}.csv"

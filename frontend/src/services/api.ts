@@ -42,7 +42,9 @@ export const dataAPI = {
 };
 
 export const uploadAPI = {
-  getUploads: () => api.get('/upload/uploads'),
+  getUploads: (userId: string) => api.get('/uploads', {
+    params: { user_id: userId }
+  }),
   uploadCSV: (formData: FormData) => api.post('/upload/csv', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -57,7 +59,7 @@ export const predictionsAPI = {
   getPredictionDetail: (id: string, userId: string) => api.get(`/predictions/${id}`, {
     params: { user_id: userId }
   }),
-  downloadPrediction: (id: string, userId: string) => api.get(`/download_predictions/${id}`, {
+  downloadPrediction: (id: string, userId: string) => api.get(`/predictions/download_predictions/${id}`, {
     params: { user_id: userId }
   }),
 };
