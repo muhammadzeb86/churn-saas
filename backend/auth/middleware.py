@@ -1,12 +1,12 @@
 ﻿"""
 Clerk JWT authentication middleware for secure API access
 """
-from fastapi import HTTPException, status, Depends, Request
+from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any
 import os
 import logging
-import jwt
+from jose import jwt
 import requests
 from functools import lru_cache
 import time
