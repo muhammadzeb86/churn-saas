@@ -1,17 +1,68 @@
+"""
+Input validation middleware for FastAPI
+"""
 from fastapi import Request, HTTPException, status
+import re
 import logging
 
 logger = logging.getLogger(__name__)
 
-async def input_validation_middleware(request, call_next):
-    # Basic validation - check for obvious SQL injection attempts
+class InputValidator:
+    """Input validation for security threats"""
+    
+    # SQL injection patterns
+    SQL_PATTERNS = [
+        r"\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION)\b",
+        r"\b(OR|AND)\s+\d+\s*=\s*\d+",
+        r"['\"];.*--",
+        r"['\"].*\bOR\b.*['\"]",
+    ]
+    
+    # XSS patterns  
+    XSS_PATTERNS = [
+        r"<script[^>]*>.*?</script>",
+        r"javascript:",
+        r"on\w+\s*=",
+        r"<iframe[^>]*>",
+    ]
+    
+    @classmethod
+    def validate_input(cls, value: str) -> bool:
+        """Validate input for security threats"""
+        if not isinstance(value, str):
+            return True
+        
+        # Check for SQL injection
+        for pattern in cls.SQL_PATTERNS:
+            if re.search(pattern, value, re.IGNORECASE):
+                logger.warning(f"SQL injection attempt detected: {value[:100]}")
+                return False
+        
+        # Check for XSS
+        for pattern in cls.XSS_PATTERNS:
+            if re.search(pattern, value, re.IGNORECASE):
+                logger.warning(f"XSS attempt detected: {value[:100]}")
+                return False
+        
+        return True
+
+async def input_validation_middleware(request: Request, call_next):
+    """Input validation middleware"""
+    # Validate query parameters
     for key, value in request.query_params.items():
-        if isinstance(value, str) and any(keyword in value.upper() for keyword in ["SELECT", "INSERT", "UPDATE", "DELETE", "DROP"]):
-            logger.warning(f"Potential SQL injection attempt in {key}: {value[:100]}")
+        if not InputValidator.validate_input(str(value)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid input detected"
+                detail=f"Invalid input detected in parameter: {key}"
+            )
+    
+    # Validate path parameters
+    for key, value in request.path_params.items():
+        if not InputValidator.validate_input(str(value)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid input detected in path: {key}"
             )
     
     response = await call_next(request)
-    return response
+    return response 
