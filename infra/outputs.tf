@@ -74,6 +74,37 @@ output "ecs_scale_down_rule_arn" {
   value       = aws_cloudwatch_event_rule.ecs_scale_down.arn
 }
 
+# Route 53 outputs
+output "route53_zone_id" {
+  description = "Route 53 hosted zone ID for retainwise.com"
+  value       = aws_route53_zone.main.zone_id
+}
+
+output "route53_name_servers" {
+  description = "Route 53 name servers for retainwise.com"
+  value       = aws_route53_zone.main.name_servers
+}
+
+output "ssl_certificate_arn" {
+  description = "ARN of the SSL certificate"
+  value       = aws_acm_certificate.main.arn
+}
+
+output "waf_web_acl_arn" {
+  description = "ARN of the WAF Web ACL"
+  value       = aws_wafv2_web_acl.main.arn
+}
+
+output "route53_zone_arn" {
+  description = "Route 53 hosted zone ARN"
+  value       = aws_route53_zone.main.arn
+}
+
+output "api_health_check_id" {
+  description = "Route 53 health check ID for API endpoint"
+  value       = aws_route53_health_check.api.id
+}
+
 output "ecs_scale_up_rule_arn" {
   description = "ARN of the EventBridge rule for scaling up ECS"
   value       = aws_cloudwatch_event_rule.ecs_scale_up.arn

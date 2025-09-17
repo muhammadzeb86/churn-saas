@@ -1,0 +1,28 @@
+﻿{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "acm:*",
+                "wafv2:*",
+                "cloudwatch:*",
+                "logs:*",
+                "ec2:*",
+                "ecr:*",
+                "ecs:*",
+                "elasticloadbalancing:*",
+                "events:*",
+                "iam:*",
+                "lambda:*",
+                "rds:*",
+                "route53:*",
+                "route53domains:*",
+                "s3:*",
+                "secretsmanager:*",
+                "sqs:*"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

@@ -357,16 +357,7 @@ resource "aws_lb_target_group" "backend" {
   }
 }
 
-resource "aws_lb_listener" "backend" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
-}
+# HTTP listener removed - now handled by HTTPS redirect in https.tf
 
 # ECS Task Definition
 resource "aws_ecs_task_definition" "backend" {
@@ -480,7 +471,7 @@ resource "aws_ecs_service" "backend" {
     container_port   = 8000
   }
 
-  depends_on = [aws_lb_listener.backend]
+  depends_on = [aws_lb_target_group.backend]
 
   tags = {
     Name = "retainwise-service"
