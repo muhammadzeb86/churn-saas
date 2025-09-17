@@ -11,8 +11,16 @@ from backend.api.routes import predict, powerbi, upload, waitlist, clerk, upload
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api.health import db_ping_ok
 from backend.core.config import settings
+from backend.middleware.rate_limiter import rate_limit_middleware
+from backend.middleware.input_validator import input_validation_middleware
+from backend.middleware.security_logger import security_logging_middleware
 
 app = FastAPI(title="RetainWise Analytics API")
+
+# Security middleware
+app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(input_validation_middleware)
+app.middleware("http")(security_logging_middleware)
 
 app.add_middleware(
     CORSMiddleware,
