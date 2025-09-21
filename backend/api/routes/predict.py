@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 import pandas as pd
 from pathlib import Path
@@ -20,7 +20,7 @@ predictor = RetentionPredictor()
 async def predict_retention(
     upload_id: int, 
     current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Make retention predictions on uploaded data.
@@ -97,7 +97,7 @@ async def predict_retention(
 async def download_predictions(
     upload_id: int, 
     current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Download predictions for a specific upload.

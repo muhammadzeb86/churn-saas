@@ -2,7 +2,7 @@
 Upload routes for handling CSV file uploads to S3
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, Dict, Any
@@ -220,7 +220,7 @@ async def get_presigned_upload_url(
     filename: str = Form(...),
     user_id: str = Form(...),
     current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Generate a presigned URL for client-side direct upload to S3
@@ -289,7 +289,7 @@ async def confirm_upload(
     filename: str = Form(...),
     file_size: Optional[int] = Form(None),
     current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Confirm a client-side upload by storing metadata in database
@@ -360,7 +360,7 @@ async def confirm_upload(
 async def get_user_uploads(
     user_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get all uploads for a specific user
@@ -420,7 +420,7 @@ async def get_user_uploads(
 @router.get("/uploads")
 async def get_uploads(
     current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get all uploads (for frontend compatibility)

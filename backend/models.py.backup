@@ -1,7 +1,9 @@
-﻿from datetime import datetime
+from datetime import datetime
 import uuid
 import enum
+import os
 from sqlalchemy import String, Integer, DateTime, Index, ForeignKey, Text, Column, Boolean, Enum, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.api.database import Base
 
@@ -51,7 +53,9 @@ class Upload(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    # S3 object key for the uploaded file
     s3_object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # File size in bytes
     file_size: Mapped[int] = mapped_column(Integer, nullable=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     upload_time: Mapped[datetime] = mapped_column(
@@ -62,7 +66,7 @@ class Upload(Base):
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="uploaded"
+        default="uploaded"  # Changed from "pending" to "uploaded" since we're uploading directly
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -96,6 +100,7 @@ class Lead(Base):
     source: Mapped[str] = mapped_column(String(100), nullable=True)
     converted_to_user: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    # Create an index on email
     __table_args__ = (
         Index("ix_leads_email", "email"),
     )
@@ -106,11 +111,19 @@ class Lead(Base):
 class Prediction(Base):
     __tablename__ = "predictions"
 
-    id: Mapped[str] = mapped_column(
-        String(36), 
-        primary_key=True, 
-        default=lambda: str(uuid.uuid4())
-    )
+    # Use String for SQLite compatibility, UUID for PostgreSQL
+    if "sqlite" in os.getenv("DATABASE_URL", "").lower():
+        id: Mapped[str] = mapped_column(
+            String(36), 
+            primary_key=True, 
+            default=lambda: str(uuid.uuid4())
+        )
+    else:
+        id: Mapped[uuid.UUID] = mapped_column(
+            UUID(as_uuid=True), 
+            primary_key=True, 
+            default=uuid.uuid4
+        )
     upload_id: Mapped[int] = mapped_column(
         ForeignKey("uploads.id", ondelete="CASCADE"), 
         nullable=False

@@ -9,14 +9,22 @@ load_dotenv()
 # Get database URL and replace protocol for asyncpg
 DATABASE_URL = os.getenv("DATABASE_URL", "").replace("postgresql://", "postgresql+asyncpg://")
 
-# Create async engine
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=True,  # Set to False in production
-    pool_pre_ping=True,  # Enable connection pool pre-ping
-    pool_size=10,  # Maximum number of connections in the pool
-    max_overflow=20  # Maximum number of connections that can be created beyond pool_size
-)
+# Create async engine with conditional configuration
+if "sqlite" in DATABASE_URL.lower():
+    # SQLite configuration (for testing)
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=True,  # Set to False in production
+    )
+else:
+    # PostgreSQL configuration (for production)
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=True,  # Set to False in production
+        pool_pre_ping=True,  # Enable connection pool pre-ping
+        pool_size=10,  # Maximum number of connections in the pool
+        max_overflow=20  # Maximum number of connections that can be created beyond pool_size
+    )
 
 # canonical factory (lowercase snake_case)
 async_session_maker = async_sessionmaker(
@@ -53,7 +61,7 @@ def get_async_session():
 async def init_db():
     async with engine.begin() as conn:
         # Import all models here to ensure they are registered with Base
-        from backend.models import User, Lead  # noqa
+        from backend.models import User, Lead, Upload, Prediction  # noqa
         
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
