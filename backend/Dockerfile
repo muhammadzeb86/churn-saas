@@ -1,5 +1,11 @@
 ﻿FROM python:3.11-slim
 
+# Build arguments for traceability
+ARG BUILD_SHA
+ARG BUILD_TIME
+LABEL org.opencontainers.image.revision=$BUILD_SHA \
+      org.opencontainers.image.created=$BUILD_TIME
+
 WORKDIR /app
 
 # Install system dependencies and Rust toolchain

@@ -29,6 +29,24 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        lfs: true
+        
+    - name: Show commit and tree
+      run: |
+        echo "=== COMMIT INFO ==="
+        git rev-parse HEAD
+        git log --oneline -5
+        echo "=== WORKSPACE STRUCTURE ==="
+        ls -la
+        echo "=== BACKEND STRUCTURE ==="
+        ls -la backend/
+        echo "=== MODELS STRUCTURE ==="
+        ls -la backend/models/ || true
+        echo "=== MODELS __INIT__.PY CONTENT ==="
+        cat backend/models/__init__.py || true
       
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -40,6 +58,26 @@ jobs:
         # Run tests from project root
         pip install -r backend/requirements-test.txt
         
+    - name: Verify import works in CI
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+      run: |
+        echo "=== PYTHONPATH ==="
+        echo $PYTHONPATH
+        echo "=== PYTHON MODULE TEST ==="
+        python - << 'PY'
+        import sys
+        print("sys.path:", sys.path)
+        try:
+            import backend.models
+            print("SUCCESS: backend.models imported")
+            print("Available models:", backend.models.__all__)
+        except Exception as e:
+            print("ERROR importing backend.models:", e)
+            import traceback
+            traceback.print_exc()
+        PY
+        
     - name: Run backend tests (if any)
       env:
         ENVIRONMENT: test
@@ -47,6 +85,7 @@ jobs:
         AWS_REGION: us-east-1
         S3_BUCKET: test-bucket
         PREDICTIONS_QUEUE_URL: ""
+        PYTHONPATH: ${{ github.workspace }}
       run: |
         # Run tests from project root
         python -m pytest backend/tests/ -v --tb=short
