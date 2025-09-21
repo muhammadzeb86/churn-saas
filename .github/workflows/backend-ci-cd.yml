@@ -38,7 +38,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         # Run tests from project root
-        pip install -r requirements-test.txt
+        pip install -r backend/requirements-test.txt
         
     - name: Run backend tests (if any)
       env:
