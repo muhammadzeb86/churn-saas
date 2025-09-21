@@ -44,7 +44,7 @@ jobs:
       run: |
         cd backend
         # Add your test commands here when you have tests
-        echo "No tests configured yet - skipping test step"
+        python -m pytest tests/ -v --tb=short
         
     - name: Build Docker image
       run: |

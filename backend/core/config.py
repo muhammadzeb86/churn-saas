@@ -1,7 +1,7 @@
-import os
+﻿import os
 import boto3
-from typing import Optional
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,9 @@ class Settings:
     
     def __init__(self):
         """Validate required settings on initialization"""
+        # Configure SQL logging based on environment
+        self.configure_sql_logging()
+        
         # SQS is optional - will be enabled when queue is available
         if self.ENVIRONMENT == "production" and not self.PREDICTIONS_QUEUE_URL:
             import logging
@@ -53,10 +56,24 @@ class Settings:
         try:
             # Extract queue name from URL
             # Format: https://sqs.region.amazonaws.com/account/queue-name
-            queue_name = self.PREDICTIONS_QUEUE_URL.split('/')[-1]
+            queue_name = self.PREDICTIONS_QUEUE_URL.split("/")[-1]
             return f"***/{queue_name}"
         except:
             return "INVALID_URL"
+    
+    def configure_sql_logging(self):
+        """Configure SQL logging based on environment"""
+        if self.ENVIRONMENT == "production":
+            # PRODUCTION: Disable SQL query logging for performance and security
+            logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+            logging.getLogger("sqlalchemy.dialects").setLevel(logging.WARNING)
+            logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+            logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
+            logger.info("SQL logging disabled for production environment")
+        else:
+            # DEVELOPMENT: Enable SQL query logging for debugging
+            logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+            logger.info("SQL logging enabled for development environment")
     
     def log_config(self):
         """Log configuration at startup (with sensitive data masked)"""
@@ -69,4 +86,4 @@ class Settings:
         logger.info("================================")
 
 # Global settings instance
-settings = Settings() 
+settings = Settings()
