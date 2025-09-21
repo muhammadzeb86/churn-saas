@@ -22,19 +22,8 @@ from backend.api.database import init_db
 TEST_USER_ID = "test-user-123"
 TEST_EMAIL = "test@example.com"
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-@pytest.fixture(scope="session")
-async def setup_database():
-    """Initialize test database"""
-    await init_db()
-    yield
-    # Cleanup after tests if needed
+# Removed session-scoped event_loop fixture - using pytest-asyncio defaults
+# This prevents conflicts with function-scoped async fixtures
 
 @pytest.fixture
 def client():
@@ -42,8 +31,10 @@ def client():
     return TestClient(app)
 
 @pytest.fixture
-async def async_client(setup_database):
+async def async_client():
     """Create async test client"""
+    # Initialize database for each test
+    await init_db()
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
 
@@ -169,22 +160,15 @@ class TestSecurity:
         # Test with potential SQL injection in query parameter
         malicious_input = "test'; DROP TABLE users; --"
         
-        # Use a simpler endpoint that doesn't require authentication
+        # Test input validation - should block malicious input
         response = client.get("/health", params={"test_param": malicious_input})
         
-        # Health endpoint should still work (input validation on query params)
-        # The malicious input is in query params, not path params, so it should be caught
-        # But health endpoint might not use query params, so test should pass
-        assert response.status_code in [200, 400]
+        # The input validation middleware should catch this and return 400
+        assert response.status_code == 400
         
-        # Test with malicious input in a path that uses query params
-        try:
-            response = client.get(f"/monitoring/metrics?malicious={malicious_input}")
-            # Should either work (if validation allows it) or be blocked
-            assert response.status_code in [200, 400, 401, 403, 422]
-        except Exception:
-            # If it raises an exception due to input validation, that's also valid
-            pass
+        # Test with clean input - should work fine
+        response = client.get("/health", params={"test_param": "clean_input"})
+        assert response.status_code == 200
 
 # Test runner configuration
 if __name__ == "__main__":
