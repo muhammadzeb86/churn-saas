@@ -1,13 +1,21 @@
 ﻿"""
 Automated tests for the RetainWise backend API
 """
+import os
 import pytest
 import asyncio
 from httpx import AsyncClient
 from fastapi.testclient import TestClient
+
+# Set up test environment before importing app
+os.environ["ENVIRONMENT"] = "test"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+os.environ["AWS_REGION"] = "us-east-1"
+os.environ["S3_BUCKET"] = "test-bucket"
+os.environ["PREDICTIONS_QUEUE_URL"] = ""
+
 from backend.main import app
 from backend.core.config import settings
-import os
 
 # Test configuration
 TEST_USER_ID = "test-user-123"
@@ -151,3 +159,13 @@ if __name__ == "__main__":
     
     # Run tests
     pytest.main([__file__, "-v", "--tb=short"])
+
+# Configure test environment before importing app
+def pytest_configure():
+    """Configure pytest environment"""
+    import os
+    # Set test environment variables
+    os.environ["ENVIRONMENT"] = "test"
+    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+    os.environ["AWS_REGION"] = "us-east-1"
+    os.environ["S3_BUCKET"] = "test-bucket"

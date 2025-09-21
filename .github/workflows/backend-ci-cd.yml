@@ -41,9 +41,14 @@ jobs:
         pip install -r requirements.txt
         
     - name: Run backend tests (if any)
+      env:
+        ENVIRONMENT: test
+        DATABASE_URL: sqlite+aiosqlite:///./test.db
+        AWS_REGION: us-east-1
+        S3_BUCKET: test-bucket
+        PREDICTIONS_QUEUE_URL: ""
       run: |
         cd backend
-        # Add your test commands here when you have tests
         python -m pytest tests/ -v --tb=short
         
     - name: Build Docker image

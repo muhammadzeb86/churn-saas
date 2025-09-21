@@ -1,17 +1,17 @@
-# Route 53 Hosted Zone for retainwise.com
+# Route 53 Hosted Zone for retainwiseanalytics.com
 resource "aws_route53_zone" "main" {
-  name = "retainwise.com"
+  name = "retainwiseanalytics.com"
 
   tags = {
-    Name        = "retainwise.com"
+    Name        = "retainwiseanalytics.com"
     Environment = "production"
   }
 }
 
-# A record for the root domain (retainwise.com) pointing to ALB
+# A record for the root domain (retainwiseanalytics.com) pointing to ALB
 resource "aws_route53_record" "root" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "retainwise.com"
+  name    = "retainwiseanalytics.com"
   type    = "A"
 
   alias {
@@ -24,7 +24,7 @@ resource "aws_route53_record" "root" {
 # A record for www subdomain pointing to ALB
 resource "aws_route53_record" "www" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "www.retainwise.com"
+  name    = "www.retainwiseanalytics.com"
   type    = "A"
 
   alias {
@@ -37,7 +37,7 @@ resource "aws_route53_record" "www" {
 # A record for api subdomain pointing to ALB
 resource "aws_route53_record" "api" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "api.retainwise.com"
+  name    = "api.retainwiseanalytics.com"
   type    = "A"
 
   alias {
@@ -49,7 +49,7 @@ resource "aws_route53_record" "api" {
 
 # Health check for the API endpoint
 resource "aws_route53_health_check" "api" {
-  fqdn                     = "api.retainwise.com"
+  fqdn                     = "api.retainwiseanalytics.com"
   port                     = 80
   type                     = "HTTP"
   resource_path            = "/health"
@@ -59,7 +59,7 @@ resource "aws_route53_health_check" "api" {
   measure_latency          = true
 
   tags = {
-    Name = "retainwise-api-health-check"
+    Name = "retainwiseanalytics-api-health-check"
   }
 }
 
@@ -73,7 +73,7 @@ resource "aws_cloudwatch_metric_alarm" "api_health_check" {
   period              = "60"
   statistic           = "Minimum"
   threshold           = "1"
-  alarm_description   = "This metric monitors api.retainwise.com health"
+  alarm_description   = "This metric monitors api.retainwiseanalytics.com health"
   alarm_actions       = [] # Add SNS topic ARN here if you want notifications
 
   dimensions = {

@@ -1,9 +1,9 @@
 # SSL Certificate for HTTPS
 resource "aws_acm_certificate" "main" {
-  domain_name       = "retainwise.com"
+  domain_name       = "retainwiseanalytics.com"
   subject_alternative_names = [
-    "www.retainwise.com",
-    "api.retainwise.com"
+    "www.retainwiseanalytics.com",
+    "api.retainwiseanalytics.com"
   ]
   validation_method = "DNS"
 

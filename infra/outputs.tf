@@ -76,12 +76,12 @@ output "ecs_scale_down_rule_arn" {
 
 # Route 53 outputs
 output "route53_zone_id" {
-  description = "Route 53 hosted zone ID for retainwise.com"
+  description = "Route 53 hosted zone ID for retainwiseanalytics.com"
   value       = aws_route53_zone.main.zone_id
 }
 
 output "route53_name_servers" {
-  description = "Route 53 name servers for retainwise.com"
+  description = "Route 53 name servers for retainwiseanalytics.com"
   value       = aws_route53_zone.main.name_servers
 }
 
