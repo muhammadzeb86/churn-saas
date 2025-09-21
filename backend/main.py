@@ -1,84 +1,42 @@
 ﻿"""
 RetainWise Analytics Backend API
-"""
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
-# Import configuration and setup
+A production-ready FastAPI application for customer retention analytics
+with ML-powered churn prediction, secure authentication, and comprehensive monitoring.
+"""
+import logging
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
+# Import configuration and database
 from backend.core.config import settings
 from backend.api.database import init_db
-
-# Import routers
-from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list, predictions
-
-# Import monitoring and health routes
-from backend.monitoring.health import router as monitoring_router
 
 # Import middleware
 from backend.middleware.rate_limiter import rate_limit_middleware
 from backend.middleware.input_validator import input_validation_middleware
 from backend.middleware.security_logger import security_logging_middleware
-from backend.middleware.error_handler import setup_error_handlers
-from backend.monitoring.metrics import setup_monitoring
+from backend.middleware.error_handler import error_handler_middleware
+from backend.monitoring.metrics import monitoring_middleware
 
-import logging
+# Import API routes
+from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list, predictions
+from backend.monitoring.health import router as monitoring_router
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
-app = FastAPI(
-    title="RetainWise Analytics API",
-    description="AI-powered customer retention analytics platform",
-    version="2.0.0",
-    docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
-    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None
-)
-
-# Setup global error handlers
-setup_error_handlers(app)
-
-# Setup monitoring
-setup_monitoring(app)
-
-# Security middleware (applied in reverse order)
-app.middleware("http")(security_logging_middleware)
-app.middleware("http")(input_validation_middleware)
-app.middleware("http")(rate_limit_middleware)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://retainwiseanalytics.com",
-        "https://www.retainwiseanalytics.com",
-        "https://app.retainwiseanalytics.com",
-        "https://backend.retainwiseanalytics.com"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include routers
-app.include_router(predict.router)      # Prediction routes are at /predict/*
-app.include_router(powerbi.router)      # PowerBI routes are at /powerbi/*
-app.include_router(upload.router)       # Upload routes are at /upload/*
-app.include_router(uploads_list.router) # Upload list routes are at /uploads/*
-app.include_router(predictions.router)  # Predictions routes are at /predictions/*
-app.include_router(waitlist.router)     # Waitlist routes are at /api/waitlist/*
-app.include_router(clerk.router)        # Clerk webhook routes are at /api/clerk/*
-app.include_router(monitoring_router)   # Monitoring routes are at /monitoring/*
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    # Startup
     logger.info("=== RETAINWISE ANALYTICS BACKEND STARTUP ===")
     
     # Log configuration
@@ -109,13 +67,53 @@ async def startup_event():
         logger.info("SQS not configured - prediction processing disabled")
     
     logger.info("=== STARTUP COMPLETE ===")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up on application shutdown"""
+    
+    yield
+    
+    # Shutdown
     logger.info("=== RETAINWISE ANALYTICS BACKEND SHUTDOWN ===")
     # Add any cleanup code here
     logger.info("=== SHUTDOWN COMPLETE ===")
+
+# Create FastAPI application with lifespan
+app = FastAPI(
+    title="RetainWise Analytics API",
+    description="Production-ready customer retention analytics with ML-powered churn prediction",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# Security middleware (order matters - these run in reverse order)
+app.middleware("http")(error_handler_middleware)
+app.middleware("http")(monitoring_middleware)
+app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(input_validation_middleware)
+app.middleware("http")(security_logging_middleware)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://retainwiseanalytics.com",
+        "https://www.retainwiseanalytics.com",
+        "https://app.retainwiseanalytics.com",
+        "https://backend.retainwiseanalytics.com"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routers
+app.include_router(predict.router)        # Predict routes are at /predict/*
+app.include_router(powerbi.router)        # PowerBI routes are at /powerbi/*
+app.include_router(upload.router)         # Upload routes are at /upload/*
+app.include_router(uploads_list.router)   # Uploads list routes are at /uploads/*
+app.include_router(predictions.router)    # Predictions routes are at /predictions/*
+app.include_router(waitlist.router)       # Waitlist routes are at /api/waitlist/*
+app.include_router(clerk.router)          # Clerk webhook routes are at /api/clerk/*
+app.include_router(monitoring_router)     # Monitoring routes are at /monitoring/*
 
 @app.get("/")
 async def root():
@@ -138,25 +136,29 @@ async def detailed_health_check():
     """Detailed health check including database connectivity"""
     try:
         from backend.api.health import db_ping_ok
-        db_ok = await db_ping_ok()
-        if not db_ok:
-            raise Exception("Database ping failed")
+        db_status = await db_ping_ok()
         
         return {
-            "status": "healthy", 
+            "status": "healthy" if db_status else "unhealthy",
             "service": "retainwise-backend",
-            "database": "connected",
-            "version": "2.0.0"
+            "database": "connected" if db_status else "disconnected",
+            "environment": settings.ENVIRONMENT
         }
     except Exception as e:
-        from fastapi import HTTPException
-        raise HTTPException(
-            status_code=503, 
-            detail={
-                "status": "unhealthy",
-                "service": "retainwise-backend", 
-                "database": "disconnected",
-                "error": str(e),
-                "version": "2.0.0"
-            }
-        )
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "service": "retainwise-backend", 
+            "database": "error",
+            "error": str(e),
+            "environment": settings.ENVIRONMENT
+        }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.ENVIRONMENT != "production"
+    )
