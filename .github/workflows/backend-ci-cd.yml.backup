@@ -37,7 +37,7 @@ jobs:
         
     - name: Install Python dependencies
       run: |
-        # Run tests from project root
+        cd backend
         pip install -r requirements-test.txt
         
     - name: Run backend tests (if any)
@@ -48,8 +48,8 @@ jobs:
         S3_BUCKET: test-bucket
         PREDICTIONS_QUEUE_URL: ""
       run: |
-        # Run tests from project root
-        python -m pytest backend/tests/ -v --tb=short
+        cd backend
+        python -m pytest tests/ -v --tb=short
         
     - name: Build Docker image
       run: |
