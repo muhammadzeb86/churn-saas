@@ -1,4 +1,4 @@
-﻿"""
+"""
 Automated tests for the RetainWise backend API
 """
 import os
@@ -30,8 +30,6 @@ def client():
     """Create test client"""
     return TestClient(app)
 
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        yield ac
 
 class TestAPI:
     """Test suite for API endpoints"""
@@ -78,8 +76,8 @@ class TestAPI:
         assert "error_rate" in data
         assert "uptime" in data
     
-    @pytest.mark.asyncio
-    async def test_waitlist_valid_email(self, async_client):
+    @pytest.mark.anyio
+    async def test_waitlist_valid_email(self, async_client: AsyncClient):
         """Test waitlist with valid email"""
         payload = {
             "email": TEST_EMAIL,
@@ -91,8 +89,8 @@ class TestAPI:
         assert data["success"] is True
         assert "message" in data
     
-    @pytest.mark.asyncio
-    async def test_waitlist_invalid_email(self, async_client):
+    @pytest.mark.anyio
+    async def test_waitlist_invalid_email(self, async_client: AsyncClient):
         """Test waitlist with invalid email"""
         payload = {
             "email": "invalid-email",
@@ -103,15 +101,15 @@ class TestAPI:
         data = response.json()
         assert "Invalid email format" in data["error"]
     
-    @pytest.mark.asyncio
-    async def test_predictions_unauthorized(self, async_client):
+    @pytest.mark.anyio
+    async def test_predictions_unauthorized(self, async_client: AsyncClient):
         """Test predictions endpoint without authentication"""
         response = await async_client.get("/predictions")
         # Should return 422 for missing query parameters or 401 for auth
         assert response.status_code in [401, 403, 422]
     
-    @pytest.mark.asyncio
-    async def test_uploads_unauthorized(self, async_client):
+    @pytest.mark.anyio
+    async def test_uploads_unauthorized(self, async_client: AsyncClient):
         """Test uploads endpoint without authentication"""
         response = await async_client.get("/uploads")
         # Should return 422 for missing query parameters or 401 for auth
