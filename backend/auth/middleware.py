@@ -1,4 +1,4 @@
-﻿"""
+"""
 Clerk JWT authentication middleware for secure API access
 """
 from fastapi import HTTPException, status, Depends
@@ -134,7 +134,8 @@ async def validate_user_access(
 # Development/Testing mode helpers
 def is_development_mode() -> bool:
     """Check if we're in development mode"""
-    return os.getenv("ENVIRONMENT", "development").lower() in ["development", "dev", "test"]
+    from backend.core.config import settings
+    return settings.AUTH_DEV_MODE and settings.ENVIRONMENT.lower() in ["development", "dev", "local"]
 
 async def get_current_user_dev_mode(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
@@ -167,3 +168,4 @@ async def get_current_user_dev_mode(
             "name": "Test User",
             "email_verified": True
         }
+

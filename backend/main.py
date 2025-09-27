@@ -114,7 +114,7 @@ app.include_router(powerbi.router, prefix="/api", tags=["powerbi"])
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 app.include_router(uploads_list.router, prefix="/api", tags=["uploads"])
 app.include_router(predictions.router, prefix="/api", tags=["predictions"])
-app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
+app.include_router(waitlist.router, prefix="/api/waitlist", tags=["waitlist"])
 app.include_router(clerk.router, prefix="/api", tags=["auth"])
 app.include_router(monitoring_router, prefix="/monitoring", tags=["monitoring"])
 
