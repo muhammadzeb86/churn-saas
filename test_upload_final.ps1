@@ -21,7 +21,7 @@ $body = $bodyLines -join $LF
 
 try {
     Write-Host "Testing upload endpoint with real user ID: user_3097FrGQiUsUdFUuXy5vpbdk7zg"
-    $response = Invoke-WebRequest -Uri "https://backend.retainwiseanalytics.com/upload/csv" -Method POST -Headers @{"Content-Type"="multipart/form-data; boundary=$boundary"} -Body $body
+    $response = Invoke-WebRequest -Uri "https://api.retainwiseanalytics.com/upload/csv" -Method POST -Headers @{"Content-Type"="multipart/form-data; boundary=$boundary"} -Body $body
     Write-Host "✅ SUCCESS!"
     Write-Host "Status Code: $($response.StatusCode)"
     Write-Host "Response: $($response.Content)"

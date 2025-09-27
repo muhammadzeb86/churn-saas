@@ -116,7 +116,7 @@ def print_sample_insert_code():
     print("    conn.commit()")
     print()
     print("OR USE THE EXISTING /auth/sync_user ENDPOINT:")
-    print("curl -X POST https://backend.retainwiseanalytics.com/auth/sync_user \\")
+    print("curl -X POST https://api.retainwiseanalytics.com/auth/sync_user \\")
     print("  -H 'Content-Type: application/json' \\")
     print("  -d '{")
     print("    \"id\": \"user_test123\",")

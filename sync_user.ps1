@@ -12,7 +12,7 @@ $body = @{
 
 try {
     Write-Host "Syncing user with ID: user_3097FrGQiUsUdFUuXy5vpbdk7zg"
-    $response = Invoke-WebRequest -Uri "https://backend.retainwiseanalytics.com/auth/sync_user" -Method POST -ContentType "application/json" -Body $body -UseBasicParsing
+    $response = Invoke-WebRequest -Uri "https://api.retainwiseanalytics.com/auth/sync_user" -Method POST -ContentType "application/json" -Body $body -UseBasicParsing
     Write-Host "Status Code: $($response.StatusCode)"
     Write-Host "Response: $($response.Content)"
 } catch {

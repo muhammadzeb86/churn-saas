@@ -20,7 +20,7 @@ $bodyLines = @(
 $body = $bodyLines -join $LF
 
 try {
-    $response = Invoke-WebRequest -Uri "https://backend.retainwiseanalytics.com/upload/csv" -Method POST -Headers @{"Content-Type"="multipart/form-data; boundary=$boundary"} -Body $body
+    $response = Invoke-WebRequest -Uri "https://api.retainwiseanalytics.com/upload/csv" -Method POST -Headers @{"Content-Type"="multipart/form-data; boundary=$boundary"} -Body $body
     Write-Host "Status Code: $($response.StatusCode)"
     Write-Host "Response: $($response.Content)"
 } catch {

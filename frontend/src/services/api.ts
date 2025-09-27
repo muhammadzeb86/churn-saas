@@ -1,6 +1,6 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://backend.retainwiseanalytics.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://api.retainwiseanalytics.com';
 
 const api = axios.create({
   baseURL: API_URL,
