@@ -7,7 +7,7 @@ from datetime import datetime
 
 class WaitlistRequest(BaseModel):
     """Request schema for waitlist email submission"""
-    email: EmailStr
+    email: str
     source: Optional[str] = "landing_page"
 
 class WaitlistResponse(BaseModel):

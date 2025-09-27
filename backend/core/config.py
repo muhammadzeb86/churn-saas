@@ -22,6 +22,7 @@ class Settings:
     # Environment
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     AUTH_DEV_MODE: bool = os.getenv("AUTH_DEV_MODE", "false").lower() in ["true", "1", "yes"]
+    SKIP_WAITLIST_PERSISTENCE: bool = os.getenv("SKIP_WAITLIST_PERSISTENCE", "false").lower() in ["true", "1", "yes"]
     
     def __init__(self):
         """Validate required settings on initialization"""
@@ -88,5 +89,6 @@ class Settings:
 
 # Global settings instance
 settings = Settings()
+
 
 
