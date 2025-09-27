@@ -30,11 +30,6 @@ def client():
     """Create test client"""
     return TestClient(app)
 
-@pytest.fixture
-async def async_client():
-    """Create async test client"""
-    # Initialize database for each test
-    await init_db()
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
 

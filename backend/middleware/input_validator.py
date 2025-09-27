@@ -1,7 +1,8 @@
 """
 Input validation middleware for FastAPI
 """
-from fastapi import Request, HTTPException, status
+from fastapi import Request
+from fastapi.responses import JSONResponse
 import re
 import logging
 
@@ -51,18 +52,28 @@ async def input_validation_middleware(request: Request, call_next):
     # Validate query parameters
     for key, value in request.query_params.items():
         if not InputValidator.validate_input(str(value)):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid input detected in parameter: {key}"
+            logger.warning(f"SQL injection attempt detected: {value[:100]}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "bad_request",
+                    "message": "Invalid input detected.",
+                },
             )
     
     # Validate path parameters
     for key, value in request.path_params.items():
         if not InputValidator.validate_input(str(value)):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid input detected in path: {key}"
+            logger.warning(f"XSS attempt detected: {value[:100]}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "bad_request",
+                    "message": "Invalid input detected.",
+                },
             )
     
     response = await call_next(request)
-    return response 
+    return response

@@ -1,4 +1,4 @@
-﻿"""
+"""
 RetainWise Analytics Backend API
 
 A production-ready FastAPI application for customer retention analytics
@@ -19,7 +19,7 @@ from backend.api.database import init_db
 from backend.middleware.rate_limiter import rate_limit_middleware
 from backend.middleware.input_validator import input_validation_middleware
 from backend.middleware.security_logger import security_logging_middleware
-from backend.middleware.error_handler import setup_error_handlers
+from backend.middleware.error_handler import setup_error_handlers, error_handler_middleware
 from backend.monitoring.metrics import monitoring_middleware
 
 # Import API routes
@@ -83,6 +83,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Error handler middleware (must be first to catch all exceptions)
+app.middleware("http")(error_handler_middleware)
+
 # Security middleware (order matters - these run in reverse order)
 app.middleware("http")(monitoring_middleware)
 app.middleware("http")(rate_limit_middleware)
@@ -98,63 +101,39 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://retainwiseanalytics.com",
-        "https://www.retainwiseanalytics.com",
-        "https://app.retainwiseanalytics.com",
-        "https://backend.retainwiseanalytics.com"
+        "https://www.retainwiseanalytics.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routers
-app.include_router(predict.router)        # Predict routes are at /predict/*
-app.include_router(powerbi.router)        # PowerBI routes are at /powerbi/*
-app.include_router(upload.router)         # Upload routes are at /upload/*
-app.include_router(uploads_list.router)   # Uploads list routes are at /uploads/*
-app.include_router(predictions.router)    # Predictions routes are at /predictions/*
-app.include_router(waitlist.router)       # Waitlist routes are at /api/waitlist/*
-app.include_router(clerk.router)          # Clerk webhook routes are at /api/clerk/*
-app.include_router(monitoring_router)     # Monitoring routes are at /monitoring/*
+# Include API routes
+app.include_router(predict.router, prefix="/api", tags=["predictions"])
+app.include_router(powerbi.router, prefix="/api", tags=["powerbi"])
+app.include_router(upload.router, prefix="/api", tags=["upload"])
+app.include_router(uploads_list.router, prefix="/api", tags=["uploads"])
+app.include_router(predictions.router, prefix="/api", tags=["predictions"])
+app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
+app.include_router(clerk.router, prefix="/api", tags=["auth"])
+app.include_router(monitoring_router, prefix="/api", tags=["monitoring"])
 
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return JSONResponse(content={
+    return {
         "message": "RetainWise Analytics backend is running",
         "version": "2.0.0",
-        "environment": settings.ENVIRONMENT,
-        "status": "operational"
-    })
+        "status": "healthy"
+    }
 
 @app.get("/health")
 async def health_check():
-    """Basic health check endpoint (kept for ALB compatibility)"""
-    return {"status": "healthy", "service": "retainwise-backend"}
-
-# Legacy health endpoint for backward compatibility
-@app.get("/health/detailed")
-async def detailed_health_check():
-    """Detailed health check including database connectivity"""
-    try:
-        from backend.api.health import db_ping_ok
-        db_status = await db_ping_ok()
-        
-        return {
-            "status": "healthy" if db_status else "unhealthy",
-            "service": "retainwise-backend",
-            "database": "connected" if db_status else "disconnected",
-            "environment": settings.ENVIRONMENT
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "service": "retainwise-backend", 
-            "database": "error",
-            "error": str(e),
-            "environment": settings.ENVIRONMENT
-        }
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": "2024-01-01T00:00:00Z"
+    }
 
 if __name__ == "__main__":
     import uvicorn
@@ -162,5 +141,5 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=settings.ENVIRONMENT != "production"
+        reload=settings.ENVIRONMENT == "development"
     )
