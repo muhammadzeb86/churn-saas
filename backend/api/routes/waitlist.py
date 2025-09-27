@@ -14,7 +14,7 @@ from backend.schemas.waitlist import WaitlistRequest, WaitlistResponse
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/waitlist", tags=["waitlist"])
+router = APIRouter(tags=["waitlist"])
 
 def validate_email(email: str) -> bool:
     """Simple email validation using regex"""

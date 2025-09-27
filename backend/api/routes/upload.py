@@ -18,7 +18,7 @@ from backend.auth.middleware import get_current_user_dev_mode, require_user_owne
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/upload", tags=["upload"])
+router = APIRouter(tags=["upload"])
 
 @router.post("/csv", response_model=UploadResponse)
 async def upload_csv(

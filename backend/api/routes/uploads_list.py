@@ -5,7 +5,7 @@ from backend.models import Upload
 from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
 from typing import Dict, Any
 
-router = APIRouter(prefix="/uploads", tags=["uploads"])
+router = APIRouter(tags=["uploads"])
 
 @router.get("")
 async def list_uploads(

@@ -17,7 +17,7 @@ from backend.schemas.clerk import ClerkWebhookPayload, WebhookResponse, UserCrea
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/clerk", tags=["clerk"])
+router = APIRouter(tags=["clerk"])
 
 def verify_clerk_webhook_signature(
     payload: bytes,

@@ -76,7 +76,7 @@ class TestAPI:
         assert "error_rate" in data
         assert "uptime" in data
     
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_waitlist_valid_email(self, async_client: AsyncClient):
         """Test waitlist with valid email"""
         payload = {
@@ -89,7 +89,7 @@ class TestAPI:
         assert data["success"] is True
         assert "message" in data
     
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_waitlist_invalid_email(self, async_client: AsyncClient):
         """Test waitlist with invalid email"""
         payload = {
@@ -101,17 +101,17 @@ class TestAPI:
         data = response.json()
         assert "Invalid email format" in data["error"]
     
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_predictions_unauthorized(self, async_client: AsyncClient):
         """Test predictions endpoint without authentication"""
-        response = await async_client.get("/predictions")
+        response = await async_client.get("/api/predictions")
         # Should return 422 for missing query parameters or 401 for auth
         assert response.status_code in [401, 403, 422]
     
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_uploads_unauthorized(self, async_client: AsyncClient):
         """Test uploads endpoint without authentication"""
-        response = await async_client.get("/uploads")
+        response = await async_client.get("/api/uploads")
         # Should return 422 for missing query parameters or 401 for auth
         assert response.status_code in [401, 403, 422]
 

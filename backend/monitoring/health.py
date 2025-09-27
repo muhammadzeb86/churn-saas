@@ -1,4 +1,4 @@
-﻿"""
+"""
 Enhanced health check endpoints with comprehensive monitoring
 """
 from fastapi import APIRouter, Depends
@@ -7,7 +7,7 @@ import logging
 from backend.monitoring.metrics import app_metrics, HealthChecker
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/monitoring", tags=["monitoring"])
+router = APIRouter(tags=["monitoring"])
 
 @router.get("/health")
 async def basic_health_check():

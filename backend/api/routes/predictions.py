@@ -15,7 +15,7 @@ from backend.auth.middleware import get_current_user_dev_mode, require_user_owne
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/predictions", tags=["predictions"])
+router = APIRouter(tags=["predictions"])
 
 # Pydantic response models
 from pydantic import BaseModel

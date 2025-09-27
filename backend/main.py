@@ -116,7 +116,7 @@ app.include_router(uploads_list.router, prefix="/api", tags=["uploads"])
 app.include_router(predictions.router, prefix="/api", tags=["predictions"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
 app.include_router(clerk.router, prefix="/api", tags=["auth"])
-app.include_router(monitoring_router, prefix="/api", tags=["monitoring"])
+app.include_router(monitoring_router, prefix="/monitoring", tags=["monitoring"])
 
 @app.get("/")
 async def root():
@@ -132,6 +132,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
+        "service": "retainwise-backend",
         "timestamp": "2024-01-01T00:00:00Z"
     }
 
@@ -143,3 +144,5 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.ENVIRONMENT == "development"
     )
+
+
