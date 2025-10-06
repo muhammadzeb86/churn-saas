@@ -471,10 +471,28 @@ resource "aws_ecs_service" "backend" {
     container_port   = 8000
   }
 
+  # Health check grace period (time for new tasks to become healthy)
+  health_check_grace_period_seconds = 120
+
+  # Enable service discovery (optional)
+  enable_execute_command = true
+
+  # CRITICAL: Prevent Terraform from reverting task definition to old revisions
+  # This allows CI/CD to manage task definitions while Terraform manages infrastructure
+  lifecycle {
+    ignore_changes = [
+      task_definition,
+      capacity_provider_strategy,
+      desired_count
+    ]
+  }
+
   depends_on = [aws_lb_target_group.backend]
 
   tags = {
-    Name = "retainwise-service"
+    Name        = "retainwise-service"
+    Environment = "production"
+    ManagedBy   = "terraform"
   }
 }
 

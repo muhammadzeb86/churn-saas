@@ -1,0 +1,1 @@
+{"statusCode": 200, "body": "{\"message\": \"No drift detected\", \"task_definition\": \"arn:aws:ecs:us-east-1:908226940571:task-definition/retainwise-backend:51\"}"}

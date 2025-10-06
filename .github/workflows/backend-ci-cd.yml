@@ -109,16 +109,26 @@ jobs:
     needs: build-and-test
     if: github.ref == 'refs/heads/main'
     
+    permissions:
+      id-token: write  # Required for OIDC
+      contents: read
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Configure AWS credentials
+    - name: Configure AWS credentials with OIDC
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        role-to-assume: arn:aws:iam::908226940571:role/retainwise-cicd-ecs-deployment-role
         aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Set deployment environment variables
+      run: |
+        echo "GIT_COMMIT_SHA=${{ github.sha }}" >> $GITHUB_ENV
+        echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+        echo "DEPLOYMENT_ID=deploy-${{ github.run_number }}" >> $GITHUB_ENV
+        echo "APP_VERSION=2.0.0" >> $GITHUB_ENV
         
     - name: Login to Amazon ECR
       id: login-ecr
@@ -182,6 +192,18 @@ jobs:
         aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION \
         --query taskDefinition > task-definition.json
         
+    - name: Update task definition with version tracking
+      run: |
+        # Add version tracking environment variables to task definition
+        jq '.containerDefinitions[0].environment += [
+          {"name": "GIT_COMMIT_SHA", "value": "'${{ github.sha }}'"},
+          {"name": "BUILD_TIME", "value": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"},
+          {"name": "DEPLOYMENT_ID", "value": "deploy-${{ github.run_number }}"},
+          {"name": "APP_VERSION", "value": "2.0.0"},
+          {"name": "ENVIRONMENT", "value": "production"}
+        ]' task-definition.json > task-definition-updated.json
+        mv task-definition-updated.json task-definition.json
+        
     - name: Fill in the new image ID in the Amazon ECS task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -205,6 +227,26 @@ jobs:
           --services $ECS_SERVICE \
           --query 'services[0].{Status:status,RunningCount:runningCount,DesiredCount:desiredCount}' \
           --output table
+          
+    - name: Update Golden Task Definition
+      run: |
+        # Get the latest task definition ARN from the service
+        LATEST_TD_ARN=$(aws ecs describe-services \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE \
+          --query 'services[0].taskDefinition' \
+          --output text)
+        
+        echo "Updating Golden Task Definition to: $LATEST_TD_ARN"
+        
+        # Update the SSM parameter with the latest task definition ARN
+        aws ssm put-parameter \
+          --name "/retainwise/golden-task-definition" \
+          --value "$LATEST_TD_ARN" \
+          --overwrite \
+          --description "Golden task definition ARN - authoritative source of truth for production deployments"
+        
+        echo "Golden Task Definition updated successfully!"
           
     - name: Check for database migration changes
       id: check-migrations
@@ -310,7 +352,7 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
-    - name: Get load balancer URL and test health endpoint
+    - name: Get load balancer URL and test endpoints
       run: |
         # Get ALB DNS name from AWS CLI
         ALB_DNS=$(aws elbv2 describe-load-balancers \
@@ -318,8 +360,20 @@ jobs:
           --output text)
         
         if [ ! -z "$ALB_DNS" ]; then
-          echo "Testing health endpoint at: http://$ALB_DNS/health"
-          curl -f http://$ALB_DNS/health || echo "Health check failed"
+          echo "Testing health endpoint at: https://$ALB_DNS/health"
+          curl -f https://$ALB_DNS/health || echo "Health check failed"
+          
+          echo "Testing version endpoint at: https://$ALB_DNS/__version"
+          VERSION_RESPONSE=$(curl -s https://$ALB_DNS/__version)
+          echo "Version response: $VERSION_RESPONSE"
+          
+          # Verify version endpoint contains expected fields
+          if echo "$VERSION_RESPONSE" | jq -e '.commit_sha, .build_time, .deployment_id' > /dev/null; then
+            echo "✅ Version endpoint working correctly!"
+          else
+            echo "❌ Version endpoint missing expected fields"
+            exit 1
+          fi
         else
           echo "Could not find load balancer DNS name"
         fi 
