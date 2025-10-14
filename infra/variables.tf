@@ -56,5 +56,5 @@ variable "db_password" {
 variable "github_repository" {
   description = "GitHub repository for CI/CD OIDC trust"
   type        = string
-  default     = "your-username/churn-saas"
+  default     = "muhammadzeb86/churn-saas"
 } 
