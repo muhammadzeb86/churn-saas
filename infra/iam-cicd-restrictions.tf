@@ -12,9 +12,7 @@ resource "aws_iam_policy" "cicd_ecs_deployment" {
       {
         Effect = "Allow"
         Action = [
-          "ecs:DescribeServices",
           "ecs:UpdateService",
-          "ecs:DescribeTaskDefinition",
           "ecs:RegisterTaskDefinition"
         ]
         Resource = [
@@ -23,6 +21,38 @@ resource "aws_iam_policy" "cicd_ecs_deployment" {
           "arn:aws:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:task-definition/retainwise-backend:*",
           "arn:aws:ecs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:task-definition/retainwise-worker:*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecs:DescribeServices",
+          "ecs:DescribeTaskDefinition",
+          "ecs:DescribeTasks",
+          "ecs:RunTask"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:PassRole"
+        ]
+        Resource = [
+          aws_iam_role.ecs_task_execution.arn,
+          aws_iam_role.ecs_task.arn
+        ]
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elbv2:DescribeLoadBalancers"
+        ]
+        Resource = "*"
       },
       {
         Effect = "Allow"
