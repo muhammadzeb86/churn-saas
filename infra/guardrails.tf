@@ -115,15 +115,16 @@ resource "aws_iam_role_policy_attachment" "lambda_td_guardrail" {
   policy_arn = aws_iam_policy.lambda_td_guardrail.arn
 }
 
-# EventBridge rule to trigger guardrail every 5 minutes
+# EventBridge rule to trigger guardrail every 30 minutes (reduced frequency to avoid conflicts with CI/CD)
 resource "aws_cloudwatch_event_rule" "td_drift_check" {
   name                = "retainwise-td-drift-check"
-  description         = "Check for task definition drift every 5 minutes"
-  schedule_expression = "rate(5 minutes)"
+  description         = "Check for task definition drift every 30 minutes (alert-only mode)"
+  schedule_expression = "rate(30 minutes)"
   
   tags = {
     Name        = "retainwise-td-drift-check"
     Environment = "production"
+    Mode        = "alert-only"
   }
 }
 

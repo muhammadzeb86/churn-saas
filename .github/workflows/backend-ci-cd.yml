@@ -212,6 +212,31 @@ jobs:
         container-name: retainwise-backend
         image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         
+    - name: Register new task definition and get ARN
+      id: register-task-def
+      run: |
+        # Register the new task definition
+        TASK_DEF_ARN=$(aws ecs register-task-definition \
+          --cli-input-json file://${{ steps.task-def.outputs.task-definition }} \
+          --query 'taskDefinition.taskDefinitionArn' \
+          --output text)
+        
+        echo "New Task Definition ARN: $TASK_DEF_ARN"
+        echo "task_definition_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+        
+    - name: Update Golden Task Definition BEFORE deployment
+      run: |
+        echo "Updating Golden Task Definition to: ${{ steps.register-task-def.outputs.task_definition_arn }}"
+        
+        # Update the SSM parameter with the NEW task definition ARN BEFORE deploying
+        aws ssm put-parameter \
+          --name "/retainwise/golden-task-definition" \
+          --value "${{ steps.register-task-def.outputs.task_definition_arn }}" \
+          --overwrite \
+          --description "Golden task definition ARN - authoritative source of truth for production deployments"
+        
+        echo "✅ Golden Task Definition updated successfully BEFORE deployment!"
+        
     - name: Deploy Amazon ECS task definition
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
@@ -225,28 +250,10 @@ jobs:
         aws ecs describe-services \
           --cluster $ECS_CLUSTER \
           --services $ECS_SERVICE \
-          --query 'services[0].{Status:status,RunningCount:runningCount,DesiredCount:desiredCount}' \
+          --query 'services[0].{Status:status,RunningCount:runningCount,DesiredCount:desiredCount,TaskDefinition:taskDefinition}' \
           --output table
           
-    - name: Update Golden Task Definition
-      run: |
-        # Get the latest task definition ARN from the service
-        LATEST_TD_ARN=$(aws ecs describe-services \
-          --cluster $ECS_CLUSTER \
-          --services $ECS_SERVICE \
-          --query 'services[0].taskDefinition' \
-          --output text)
-        
-        echo "Updating Golden Task Definition to: $LATEST_TD_ARN"
-        
-        # Update the SSM parameter with the latest task definition ARN
-        aws ssm put-parameter \
-          --name "/retainwise/golden-task-definition" \
-          --value "$LATEST_TD_ARN" \
-          --overwrite \
-          --description "Golden task definition ARN - authoritative source of truth for production deployments"
-        
-        echo "Golden Task Definition updated successfully!"
+        echo "✅ Deployment completed successfully!"
           
     - name: Check for database migration changes
       id: check-migrations
@@ -354,26 +361,21 @@ jobs:
         
     - name: Get load balancer URL and test endpoints
       run: |
-        # Get ALB DNS name from AWS CLI
-        ALB_DNS=$(aws elbv2 describe-load-balancers \
-          --query 'LoadBalancers[?contains(LoadBalancerName, `retainwise`)].DNSName' \
-          --output text)
+        # Use the production domain name instead of raw ALB DNS to avoid SSL certificate errors
+        DOMAIN="api.retainwiseanalytics.com"
         
-        if [ ! -z "$ALB_DNS" ]; then
-          echo "Testing health endpoint at: https://$ALB_DNS/health"
-          curl -f https://$ALB_DNS/health || echo "Health check failed"
-          
-          echo "Testing version endpoint at: https://$ALB_DNS/__version"
-          VERSION_RESPONSE=$(curl -s https://$ALB_DNS/__version)
-          echo "Version response: $VERSION_RESPONSE"
-          
-          # Verify version endpoint contains expected fields
-          if echo "$VERSION_RESPONSE" | jq -e '.commit_sha, .build_time, .deployment_id' > /dev/null; then
-            echo "✅ Version endpoint working correctly!"
-          else
-            echo "❌ Version endpoint missing expected fields"
-            exit 1
-          fi
+        echo "Testing health endpoint at: https://$DOMAIN/health"
+        curl -f https://$DOMAIN/health || echo "Health check failed"
+        
+        echo "Testing version endpoint at: https://$DOMAIN/__version"
+        VERSION_RESPONSE=$(curl -s https://$DOMAIN/__version)
+        echo "Version response: $VERSION_RESPONSE"
+        
+        # Verify version endpoint contains expected fields
+        if echo "$VERSION_RESPONSE" | jq -e '.commit_sha, .build_time, .deployment_id' > /dev/null; then
+          echo "✅ Version endpoint working correctly!"
+          echo "✅ Deployment verified successfully!"
         else
-          echo "Could not find load balancer DNS name"
+          echo "❌ Version endpoint missing expected fields"
+          exit 1
         fi 
