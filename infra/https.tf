@@ -55,6 +55,31 @@ resource "aws_lb_listener" "backend_https" {
   }
 }
 
+# Redirect root domain to app subdomain
+resource "aws_lb_listener_rule" "root_redirect" {
+  listener_arn = aws_lb_listener.backend_https.arn
+  priority     = 100
+
+  action {
+    type = "redirect"
+
+    redirect {
+      host        = "app.retainwiseanalytics.com"
+      path        = "/#{path}"
+      query       = "#{query}"
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+
+  condition {
+    host_header {
+      values = ["retainwiseanalytics.com"]
+    }
+  }
+}
+
 # Redirect HTTP to HTTPS
 resource "aws_lb_listener" "backend_redirect" {
   load_balancer_arn = aws_lb.main.arn

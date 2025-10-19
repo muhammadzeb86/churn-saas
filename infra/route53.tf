@@ -85,6 +85,47 @@ resource "aws_route53_record" "app" {
   records = ["ecf0fa7ec7f02e4f.vercel-dns-017.com"]
 }
 
+# Clerk DNS records for authentication
+resource "aws_route53_record" "clerk_frontend" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "clerk.retainwiseanalytics.com"
+  type    = "CNAME"
+  ttl     = "300"
+  records = ["frontend-api.clerk.services"]
+}
+
+resource "aws_route53_record" "clerk_accounts" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "accounts.retainwiseanalytics.com"
+  type    = "CNAME"
+  ttl     = "300"
+  records = ["accounts.clerk.services"]
+}
+
+resource "aws_route53_record" "clerk_email" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "clkmail.retainwiseanalytics.com"
+  type    = "CNAME"
+  ttl     = "300"
+  records = ["mail.eoqmz4ql39r.clerk.services"]
+}
+
+resource "aws_route53_record" "clerk_dkim1" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "clk._domainkey.retainwiseanalytics.com"
+  type    = "CNAME"
+  ttl     = "300"
+  records = ["dkim1.eoqmz4ql39r.clerk.services"]
+}
+
+resource "aws_route53_record" "clerk_dkim2" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "clk2._domainkey.retainwiseanalytics.com"
+  type    = "CNAME"
+  ttl     = "300"
+  records = ["dkim2.eoqmz4ql39r.clerk.services"]
+}
+
 # CloudWatch alarm for health check failures
 resource "aws_cloudwatch_metric_alarm" "api_health_check" {
   alarm_name          = "retainwise-api-health-check-failure"
