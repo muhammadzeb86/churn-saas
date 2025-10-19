@@ -226,16 +226,47 @@ jobs:
         
     - name: Update Golden Task Definition BEFORE deployment
       run: |
-        echo "Updating Golden Task Definition to: ${{ steps.register-task-def.outputs.task_definition_arn }}"
+        # Get the new task definition ARN from previous step
+        TASK_DEF_ARN="${{ steps.register-task-def.outputs.task_definition_arn }}"
         
-        # Update the SSM parameter with the NEW task definition ARN BEFORE deploying
-        aws ssm put-parameter \
-          --name "/retainwise/golden-task-definition" \
-          --value "${{ steps.register-task-def.outputs.task_definition_arn }}" \
-          --overwrite \
-          --description "Golden task definition ARN - authoritative source of truth for production deployments"
+        # Validate the ARN format
+        if [[ ! "$TASK_DEF_ARN" =~ ^arn:aws:ecs:[a-z0-9-]+:[0-9]+:task-definition/[a-zA-Z0-9_-]+:[0-9]+$ ]]; then
+          echo "❌ Error: Invalid task definition ARN format: $TASK_DEF_ARN"
+          exit 1
+        fi
         
-        echo "✅ Golden Task Definition updated successfully BEFORE deployment!"
+        echo "Updating Golden Task Definition to: $TASK_DEF_ARN"
+        
+        # Update the SSM parameter with retry logic
+        MAX_RETRIES=3
+        RETRY_COUNT=0
+        
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if aws ssm put-parameter \
+            --name "/retainwise/golden-task-definition" \
+            --value "$TASK_DEF_ARN" \
+            --overwrite \
+            --description "Golden task definition ARN - authoritative source of truth for production deployments"; then
+            
+            # Verify the update
+            STORED_ARN=$(aws ssm get-parameter --name "/retainwise/golden-task-definition" --query 'Parameter.Value' --output text)
+            if [ "$STORED_ARN" == "$TASK_DEF_ARN" ]; then
+              echo "✅ Golden Task Definition updated and verified successfully!"
+              break
+            else
+              echo "❌ Warning: Parameter update verification failed. Retrying..."
+            fi
+          else
+            echo "❌ Warning: Failed to update parameter. Retrying..."
+          fi
+          
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "❌ Error: Failed to update Golden Task Definition after $MAX_RETRIES attempts"
+            exit 1
+          fi
+          sleep 5
+        done
         
     - name: Deploy Amazon ECS task definition
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
@@ -245,15 +276,34 @@ jobs:
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
         
-    - name: Get service status
+    - name: Verify deployment and golden task definition
       run: |
-        aws ecs describe-services \
+        echo "=== Verifying Service Status ==="
+        SERVICE_INFO=$(aws ecs describe-services \
           --cluster $ECS_CLUSTER \
           --services $ECS_SERVICE \
           --query 'services[0].{Status:status,RunningCount:runningCount,DesiredCount:desiredCount,TaskDefinition:taskDefinition}' \
-          --output table
-          
-        echo "✅ Deployment completed successfully!"
+          --output json)
+        
+        echo "$SERVICE_INFO" | jq '.'
+        
+        # Extract current task definition
+        CURRENT_TD=$(echo "$SERVICE_INFO" | jq -r '.TaskDefinition')
+        
+        echo "=== Verifying Golden Task Definition ==="
+        GOLDEN_TD=$(aws ssm get-parameter --name "/retainwise/golden-task-definition" --query 'Parameter.Value' --output text)
+        
+        echo "Current Task Definition: $CURRENT_TD"
+        echo "Golden Task Definition:  $GOLDEN_TD"
+        
+        if [ "$CURRENT_TD" != "$GOLDEN_TD" ]; then
+          echo "❌ ERROR: Task definition mismatch!"
+          echo "Service is running $CURRENT_TD but golden parameter is $GOLDEN_TD"
+          exit 1
+        fi
+        
+        echo "✅ Deployment completed and verified successfully!"
+        echo "✅ Service and golden task definition are in sync!"
           
     - name: Check for database migration changes
       id: check-migrations
