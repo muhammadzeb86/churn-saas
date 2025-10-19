@@ -3,7 +3,8 @@ resource "aws_acm_certificate" "main" {
   domain_name       = "retainwiseanalytics.com"
   subject_alternative_names = [
     "www.retainwiseanalytics.com",
-    "api.retainwiseanalytics.com"
+    "api.retainwiseanalytics.com",
+    "backend.retainwiseanalytics.com"
   ]
   validation_method = "DNS"
 

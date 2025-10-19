@@ -47,6 +47,19 @@ resource "aws_route53_record" "api" {
   }
 }
 
+# A record for backend subdomain pointing to ALB (legacy/alternative endpoint)
+resource "aws_route53_record" "backend" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "backend.retainwiseanalytics.com"
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.main.dns_name
+    zone_id                = aws_lb.main.zone_id
+    evaluate_target_health = true
+  }
+}
+
 # Health check for the API endpoint
 resource "aws_route53_health_check" "api" {
   fqdn                     = "api.retainwiseanalytics.com"
