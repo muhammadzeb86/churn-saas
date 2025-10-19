@@ -101,7 +101,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://retainwiseanalytics.com",
-        "https://www.retainwiseanalytics.com"
+        "https://www.retainwiseanalytics.com",
+        "https://app.retainwiseanalytics.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -63,6 +63,15 @@ resource "aws_route53_health_check" "api" {
   }
 }
 
+# CNAME record for app subdomain pointing to Vercel
+resource "aws_route53_record" "app" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "app.retainwiseanalytics.com"
+  type    = "CNAME"
+  ttl     = "300"
+  records = ["ecf0fa7ec7f02e4f.vercel-dns-017.com"]
+}
+
 # CloudWatch alarm for health check failures
 resource "aws_cloudwatch_metric_alarm" "api_health_check" {
   alarm_name          = "retainwise-api-health-check-failure"
