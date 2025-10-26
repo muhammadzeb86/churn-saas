@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { InternalAxiosRequestConfig } from 'axios';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://backend.retainwiseanalytics.com';
 
@@ -9,14 +9,37 @@ const api = axios.create({
   },
 });
 
-// Add request interceptor to include auth token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// ✅ PRODUCTION-GRADE: Token provider function (set by app at runtime)
+let tokenProviderFunction: (() => Promise<string | null>) | null = null;
+
+/**
+ * Set the token provider function
+ * This should be called by the app when Clerk is initialized
+ */
+export const setTokenProvider = (provider: () => Promise<string | null>) => {
+  tokenProviderFunction = provider;
+};
+
+// ✅ PRODUCTION-GRADE: Clerk JWT Token Interceptor
+api.interceptors.request.use(
+  async (config: InternalAxiosRequestConfig) => {
+    try {
+      if (tokenProviderFunction) {
+        const token = await tokenProviderFunction();
+        if (token && config.headers) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to get authentication token:', error);
+      // Continue without token - backend will return 401 if needed
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
 // API endpoints
 export const authAPI = {
@@ -65,7 +88,7 @@ export const predictionsAPI = {
 };
 
 export const powerbiAPI = {
-  getEmbedToken: () => api.get('/api/powerbi/embed-token'),
+  getEmbedToken: () => api.get('/api/embed-token'),
 };
 
 // Helper function to get the full API URL for endpoints

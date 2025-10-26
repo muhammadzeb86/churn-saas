@@ -4,7 +4,7 @@ from typing import Dict, Any
 import os
 import requests
 from datetime import datetime, timedelta
-from backend.auth.middleware import get_current_user_dev_mode
+from backend.auth.middleware import get_current_user
 from backend.models import User
 
 router = APIRouter()
@@ -16,7 +16,7 @@ CLIENT_SECRET = os.getenv("POWERBI_CLIENT_SECRET")
 TENANT_ID = os.getenv("POWERBI_TENANT_ID")
 
 @router.get("/embed-token", response_model=Dict[str, str])
-async def get_embed_token(current_user: Dict[str, Any] = Depends(get_current_user_dev_mode)):
+async def get_embed_token(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Generate a Power BI embed token for the report."""
     try:
         # Get Azure AD token

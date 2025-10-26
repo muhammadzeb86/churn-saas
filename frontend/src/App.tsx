@@ -1,8 +1,9 @@
 // Redeploy trigger - Vercel deployment update
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ClerkProvider, SignIn, SignUp, useAuth } from '@clerk/clerk-react';
 import { UserProvider } from './contexts/UserContext';
+import { setTokenProvider } from './services/api';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
@@ -42,7 +43,25 @@ const App: React.FC = () => {
 };
 
 const AppRoutes: React.FC = () => {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+
+  // ✅ PRODUCTION-GRADE: Set up token provider for API calls
+  useEffect(() => {
+    if (isLoaded) {
+      setTokenProvider(async () => {
+        try {
+          if (isSignedIn) {
+            const token = await getToken();
+            return token;
+          }
+          return null;
+        } catch (error) {
+          console.error('Failed to get Clerk token:', error);
+          return null;
+        }
+      });
+    }
+  }, [isLoaded, isSignedIn, getToken]);
 
   // Show loading screen while Clerk loads
   if (!isLoaded) {
