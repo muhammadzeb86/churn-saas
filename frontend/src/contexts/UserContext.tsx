@@ -32,11 +32,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const response = await authAPI.syncUser({
-          clerk_user_id: user.id,
-          email: user.primaryEmailAddress?.emailAddress,
-          full_name: `${user.firstName} ${user.lastName}`.trim()
-        });
+        // JWT token is automatically sent via interceptor
+        // Backend extracts user data from token
+        const response = await authAPI.syncUser();
 
         setDBUser(response.data);
         setError(null);
