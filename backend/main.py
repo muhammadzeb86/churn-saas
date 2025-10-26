@@ -66,6 +66,14 @@ async def lifespan(app: FastAPI):
     elif settings.ENVIRONMENT == "production":
         logger.info("SQS not configured - prediction processing disabled")
     
+    # ✅ NEW: Run authentication system self-test
+    try:
+        from backend.auth.middleware import startup_auth_check
+        await startup_auth_check()
+    except Exception as e:
+        logger.error(f"Authentication system self-test failed: {e}")
+        logger.warning("Authentication may not work properly")
+    
     logger.info("=== STARTUP COMPLETE ===")
     
     yield
