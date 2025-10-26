@@ -48,7 +48,7 @@ export const authAPI = {
   signup: (name: string, email: string, password: string) =>
     api.post('/api/auth/signup', { name, email, password }),
   checkHealth: () => api.get('/health'),
-  syncUser: (userData: any) => api.post('/api/webhook', userData),
+  syncUser: () => api.post('/api/sync-user'),
 };
 
 export const dataAPI = {

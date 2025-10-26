@@ -18,6 +18,13 @@ TENANT_ID = os.getenv("POWERBI_TENANT_ID")
 @router.get("/embed-token", response_model=Dict[str, str])
 async def get_embed_token(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Generate a Power BI embed token for the report."""
+    # Check if PowerBI is configured
+    if not all([WORKSPACE_ID, REPORT_ID, CLIENT_ID, CLIENT_SECRET, TENANT_ID]):
+        raise HTTPException(
+            status_code=503,
+            detail="PowerBI integration not configured. Please contact support."
+        )
+    
     try:
         # Get Azure AD token
         token_url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"

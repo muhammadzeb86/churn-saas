@@ -9,11 +9,12 @@ import hmac
 import hashlib
 import os
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from backend.api.database import get_db
 from backend.models import User
 from backend.schemas.clerk import ClerkWebhookPayload, WebhookResponse, UserCreate, UserUpdate
+from backend.auth.middleware import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +142,9 @@ async def clerk_webhook(
         # Verify webhook signature
         if not svix_signature:
             logger.error("Missing svix-signature header")
-            return WebhookResponse(
-                success=False,
-                message="Missing signature header"
+            raise HTTPException(
+                status_code=400,
+                detail="This endpoint is for Clerk webhooks only. Missing svix-signature header."
             )
         
         if not verify_clerk_webhook_signature(payload, svix_signature, webhook_secret):
@@ -310,4 +311,84 @@ async def handle_user_updated(clerk_user_data, db: AsyncSession) -> WebhookRespo
         return WebhookResponse(
             success=False,
             message="Failed to update user"
-        ) 
+        )
+
+@router.post("/sync-user")
+async def sync_user_from_frontend(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Sync user data from frontend (called after Clerk login)
+    
+    This endpoint is called by the frontend after a user logs in
+    to ensure the user exists in our database.
+    
+    Args:
+        current_user: Current authenticated user (from JWT)
+        db: Database session
+        
+    Returns:
+        User data or creation status
+    """
+    try:
+        clerk_id = current_user.get('id')
+        if not clerk_id:
+            raise HTTPException(status_code=400, detail="User ID not found in token")
+        
+        # Check if user exists
+        result = await db.execute(
+            select(User).where(User.clerk_id == clerk_id)
+        )
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            logger.info(f"User already synced: {clerk_id}")
+            return {
+                "success": True,
+                "message": "User already exists",
+                "user_id": existing_user.id
+            }
+        
+        # Create new user from JWT data
+        email = current_user.get('email') or current_user.get('raw_payload', {}).get('email')
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not found in token")
+        
+        first_name = current_user.get('first_name') or ''
+        last_name = current_user.get('last_name') or ''
+        full_name = current_user.get('name') or f"{first_name} {last_name}".strip() or "Unknown User"
+        avatar_url = current_user.get('picture') or current_user.get('raw_payload', {}).get('picture')
+        
+        new_user = User(
+            email=email,
+            clerk_id=clerk_id,
+            full_name=full_name,
+            first_name=first_name,
+            last_name=last_name,
+            avatar_url=avatar_url
+        )
+        
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+        
+        logger.info(f"Created new user from frontend sync: {new_user.id} ({email})")
+        
+        return {
+            "success": True,
+            "message": "User created successfully",
+            "user_id": new_user.id
+        }
+        
+    except IntegrityError:
+        await db.rollback()
+        logger.warning(f"User creation failed due to integrity error: {clerk_id}")
+        return {
+            "success": True,
+            "message": "User already exists"
+        }
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error syncing user: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to sync user") 
