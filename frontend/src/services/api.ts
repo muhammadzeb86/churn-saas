@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://api.retainwiseanalytics.com';
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://backend.retainwiseanalytics.com';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -21,31 +21,31 @@ api.interceptors.request.use((config) => {
 // API endpoints
 export const authAPI = {
   login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }),
+    api.post('/api/auth/login', { email, password }),
   signup: (name: string, email: string, password: string) =>
-    api.post('/auth/signup', { name, email, password }),
+    api.post('/api/auth/signup', { name, email, password }),
   checkHealth: () => api.get('/health'),
-  syncUser: (userData: any) => api.post('/auth/sync_user', userData),
+  syncUser: (userData: any) => api.post('/api/webhook', userData),
 };
 
 export const dataAPI = {
   uploadFile: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/upload', formData, {
+    return api.post('/api/csv', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
   },
-  getPredictions: () => api.get('/predictions'),
+  getPredictions: () => api.get('/api/predictions'),
 };
 
 export const uploadAPI = {
-  getUploads: (userId: string) => api.get('/uploads', {
+  getUploads: (userId: string) => api.get('/api/uploads', {
     params: { user_id: userId }
   }),
-  uploadCSV: (formData: FormData) => api.post('/upload/csv', formData, {
+  uploadCSV: (formData: FormData) => api.post('/api/csv', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -53,19 +53,19 @@ export const uploadAPI = {
 };
 
 export const predictionsAPI = {
-  getPredictions: (userId: string) => api.get('/predictions', {
+  getPredictions: (userId: string) => api.get('/api/predictions', {
     params: { user_id: userId }
   }),
-  getPredictionDetail: (id: string, userId: string) => api.get(`/predictions/${id}`, {
+  getPredictionDetail: (id: string, userId: string) => api.get(`/api/predictions/${id}`, {
     params: { user_id: userId }
   }),
-  downloadPrediction: (id: string, userId: string) => api.get(`/predictions/download_predictions/${id}`, {
+  downloadPrediction: (id: string, userId: string) => api.get(`/api/predictions/download_predictions/${id}`, {
     params: { user_id: userId }
   }),
 };
 
 export const powerbiAPI = {
-  getEmbedToken: () => api.get('/powerbi/embed-token'),
+  getEmbedToken: () => api.get('/api/powerbi/embed-token'),
 };
 
 // Helper function to get the full API URL for endpoints
