@@ -9,7 +9,7 @@ from backend.api.database import get_db
 from backend.models import Upload
 from backend.api.schemas.predict import PredictionResponse
 from backend.ml.predict import RetentionPredictor
-from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
+from backend.auth.middleware import get_current_user, require_user_ownership
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ predictor = RetentionPredictor()
 @router.post("/predict_retention", response_model=PredictionResponse)
 async def predict_retention(
     upload_id: int, 
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -96,7 +96,7 @@ async def predict_retention(
 @router.get("/download_predictions/{upload_id}")
 async def download_predictions(
     upload_id: int, 
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """

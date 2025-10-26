@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, HTTPException, Depends
 from sqlalchemy import select
 from backend.api.database import async_session_maker
 from backend.models import Upload
-from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
+from backend.auth.middleware import get_current_user, require_user_ownership
 from typing import Dict, Any
 
 router = APIRouter(tags=["uploads"])
@@ -11,7 +11,7 @@ router = APIRouter(tags=["uploads"])
 async def list_uploads(
     user_id: str = Query(...), 
     limit: int = 20,
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     if not user_id:
         raise HTTPException(status_code=400, detail="user_id is required")

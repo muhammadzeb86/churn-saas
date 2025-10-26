@@ -1,7 +1,8 @@
 """
 Upload routes for handling CSV file uploads to S3
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,7 +21,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["upload"])
 
-@router.post("/csv", response_model=UploadResponse)
+# ✅ PRODUCTION FIX: Explicit CORS headers for file upload
+def add_cors_headers(response: Response) -> Response:
+    """Add explicit CORS headers for file upload endpoints"""
+    response.headers["Access-Control-Allow-Origin"] = "https://app.retainwiseanalytics.com"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
+    return response
+
+@router.post("/csv")
 async def upload_csv(
     file: UploadFile = File(...),
     user_id: str = Form(...),
@@ -194,17 +204,21 @@ async def upload_csv(
         
         logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id}")
         
-        return UploadResponse(
-            success=True,
-            message="File uploaded successfully",
-            upload_id=upload_record.id,
-            object_key=upload_result["object_key"],
-            filename=file.filename,
-            file_size=upload_result["size"],
-            prediction_id=str(prediction_record.id),
-            prediction_status=prediction_status,
-            publish_warning=publish_warning if publish_warning else None
-        )
+        # Create response with explicit CORS headers
+        response_data = {
+            "success": True,
+            "message": "File uploaded successfully",
+            "upload_id": upload_record.id,
+            "object_key": upload_result["object_key"],
+            "filename": file.filename,
+            "file_size": upload_result["size"],
+            "prediction_id": str(prediction_record.id),
+            "prediction_status": prediction_status,
+            "publish_warning": publish_warning if publish_warning else None
+        }
+        
+        response = JSONResponse(content=response_data)
+        return add_cors_headers(response)
         
     except HTTPException:
         raise

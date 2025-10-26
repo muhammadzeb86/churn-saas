@@ -11,7 +11,7 @@ from backend.api.database import get_db
 from backend.models import Prediction, PredictionStatus
 from backend.services.s3_service import s3_service
 from backend.core.config import settings
-from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
+from backend.auth.middleware import get_current_user, require_user_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class DownloadUrlResponse(BaseModel):
 @router.get("/", response_model=PredictionListResponse)
 async def list_predictions(
     user_id: str = Query(..., description="User ID to filter predictions"),
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -123,7 +123,7 @@ async def list_predictions(
 async def get_prediction_detail(
     prediction_id: str,
     user_id: str = Query(..., description="User ID for ownership verification"),
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -193,7 +193,7 @@ async def get_prediction_detail(
 async def download_prediction_results(
     prediction_id: str,
     user_id: str = Query(..., description="User ID for ownership verification"),
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
