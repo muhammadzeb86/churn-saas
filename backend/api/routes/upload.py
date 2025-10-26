@@ -14,7 +14,7 @@ from backend.services.s3_service import s3_service
 from backend.services.sqs_service import publish_prediction_task
 from backend.schemas.upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
 from backend.core.config import settings
-from backend.auth.middleware import get_current_user_dev_mode, require_user_ownership
+from backend.auth.middleware import get_current_user, require_user_ownership
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ router = APIRouter(tags=["upload"])
 async def upload_csv(
     file: UploadFile = File(...),
     user_id: str = Form(...),
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -219,7 +219,7 @@ async def upload_csv(
 async def get_presigned_upload_url(
     filename: str = Form(...),
     user_id: str = Form(...),
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -288,7 +288,7 @@ async def confirm_upload(
     user_id: str = Form(...),
     filename: str = Form(...),
     file_size: Optional[int] = Form(None),
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -359,7 +359,7 @@ async def confirm_upload(
 @router.get("/files/{user_id}")
 async def get_user_uploads(
     user_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -419,7 +419,7 @@ async def get_user_uploads(
 
 @router.get("/uploads")
 async def get_uploads(
-    current_user: Dict[str, Any] = Depends(get_current_user_dev_mode),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
