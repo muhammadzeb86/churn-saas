@@ -21,15 +21,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["upload"])
 
-# ✅ PRODUCTION FIX: Explicit CORS headers for file upload
-def add_cors_headers(response: Response) -> Response:
-    """Add explicit CORS headers for file upload endpoints"""
-    response.headers["Access-Control-Allow-Origin"] = "https://app.retainwiseanalytics.com"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept"
-    return response
-
 @router.post("/csv")
 async def upload_csv(
     file: UploadFile = File(...),
@@ -48,7 +39,7 @@ async def upload_csv(
     Returns:
         Upload response with success status and object key
     """
-    logger.info(f"Received upload request for user_id: {user_id}, filename: {file.filename}")
+    logger.info(f"Received upload request for clerk_id: {user_id}, filename: {file.filename}")
     try:
         # Verify user has access to upload for this user_id
         require_user_ownership(user_id, current_user)
@@ -68,14 +59,17 @@ async def upload_csv(
                 detail="File size exceeds 10MB limit"
             )
         
-        # Check if user exists
-        result = await db.execute(select(User).filter(User.id == user_id))
+        # Check if user exists (user_id from frontend is Clerk ID)
+        result = await db.execute(select(User).filter(User.clerk_id == user_id))
         user = result.scalar_one_or_none()
         if not user:
             raise HTTPException(
                 status_code=404,
-                detail="User not found"
+                detail="User not found. Please ensure you're logged in."
             )
+        
+        # Use the database user.id for foreign key relationships
+        db_user_id = user.id
         
         # Try to upload file to S3, fallback to local storage if AWS credentials not available
         try:
@@ -132,12 +126,12 @@ async def upload_csv(
         
         # Begin transaction - create Upload and Prediction records
         try:
-            # Create upload record
+            # Create upload record (use db_user_id for foreign key)
             upload_record = Upload(
                 filename=file.filename,
                 s3_object_key=upload_result["object_key"],
                 file_size=upload_result["size"],
-                user_id=user_id,
+                user_id=db_user_id,
                 status="uploaded"
             )
             db.add(upload_record)
@@ -145,10 +139,10 @@ async def upload_csv(
             # Flush to get upload_id
             await db.flush()
             
-            # Create prediction record
+            # Create prediction record (use db_user_id for foreign key)
             prediction_record = Prediction(
                 upload_id=upload_record.id,
-                user_id=user_id,
+                user_id=db_user_id,
                 status=PredictionStatus.QUEUED
             )
             db.add(prediction_record)
@@ -161,7 +155,7 @@ async def upload_csv(
             await db.refresh(upload_record)
             await db.refresh(prediction_record)
             
-            logger.info(f"upload: created prediction - upload_id={upload_record.id}, prediction_id={prediction_record.id}, user_id={user_id}")
+            logger.info(f"upload: created prediction - upload_id={upload_record.id}, prediction_id={prediction_record.id}, db_user_id={db_user_id}, clerk_id={user_id}")
             
         except Exception as e:
             await db.rollback()
@@ -178,7 +172,7 @@ async def upload_csv(
                     queue_url=settings.PREDICTIONS_QUEUE_URL,
                     prediction_id=str(prediction_record.id),
                     upload_id=str(upload_record.id),
-                    user_id=user_id,
+                    user_id=db_user_id,  # Use database user_id for internal processing
                     s3_key=upload_result["object_key"]
                 )
                 logger.info(f"upload: published sqs message - prediction_id={prediction_record.id}, message_body={{upload_id: {upload_record.id}, s3_key: {upload_result['object_key']}}}")
@@ -202,10 +196,10 @@ async def upload_csv(
         else:
             logger.info(f"upload: SQS disabled - prediction {prediction_record.id} created but not queued for processing")
         
-        logger.info(f"Successfully uploaded CSV file: {file.filename} for user {user_id}")
+        logger.info(f"Successfully uploaded CSV file: {file.filename} for clerk_id {user_id} (db_user_id: {db_user_id})")
         
-        # Create response with explicit CORS headers
-        response_data = {
+        # Return response (CORS handled by middleware)
+        return {
             "success": True,
             "message": "File uploaded successfully",
             "upload_id": upload_record.id,
@@ -216,9 +210,6 @@ async def upload_csv(
             "prediction_status": prediction_status,
             "publish_warning": publish_warning if publish_warning else None
         }
-        
-        response = JSONResponse(content=response_data)
-        return add_cors_headers(response)
         
     except HTTPException:
         raise

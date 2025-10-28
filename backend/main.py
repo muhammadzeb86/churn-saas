@@ -103,29 +103,21 @@ app.middleware("http")(security_logging_middleware)
 # Setup global error handlers
 setup_error_handlers(app)
 
-# CORS middleware
+# ✅ HIGHWAY-GRADE CORS Configuration
+# Uses wildcards for methods/headers to work around FastAPI multipart/form-data bug
+# See: https://github.com/encode/starlette/issues/1441
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "https://retainwiseanalytics.com",
-        "https://www.retainwiseanalytics.com",
-        "https://app.retainwiseanalytics.com",
-        "https://backend.retainwiseanalytics.com"
+        "https://app.retainwiseanalytics.com",  # Primary frontend
+        "http://localhost:3000",                 # Local development
+        "https://retainwiseanalytics.com",       # Root domain
+        "https://www.retainwiseanalytics.com",   # WWW variant
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=[
-        "Authorization",
-        "Content-Type",
-        "Accept",
-        "Origin",
-        "User-Agent",
-        "DNT",
-        "Cache-Control",
-        "X-Requested-With",
-    ],
-    expose_headers=["Content-Length", "Content-Type"],
+    allow_methods=["*"],  # Wildcard prevents method validation issues with multipart
+    allow_headers=["*"],  # Wildcard prevents header stripping for file uploads
+    expose_headers=["Content-Length", "Content-Type", "Content-Disposition"],
     max_age=3600,
 )
 
