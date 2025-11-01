@@ -70,9 +70,11 @@ export const uploadAPI = {
   }),
   uploadCSV: (formData: FormData, onProgress?: (percentCompleted: number) => void) => 
     api.post('/api/csv', formData, {
-      // ✅ DO NOT set Content-Type manually for multipart/form-data
-      // Axios automatically sets it with the correct boundary parameter
-      headers: {},
+      // ✅ CRITICAL: Delete the default Content-Type header for multipart/form-data
+      // This allows Axios to set the correct boundary automatically
+      headers: {
+        'Content-Type': undefined as any,  // Delete default application/json header
+      },
       timeout: 120000, // 2 minutes for large file uploads
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
