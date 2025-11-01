@@ -56,11 +56,10 @@ const Predictions: React.FC = () => {
   }, [predictions, polling]);
 
   const fetchPredictions = async () => {
-    if (!user?.id) return;
-    
+    // No need to check user?.id - JWT token handles authentication
     try {
       setError(null);
-      const response = await predictionsAPI.getPredictions(user.id);
+      const response = await predictionsAPI.getPredictions();
       const data: PredictionListResponse = response.data;
       
       if (data.success) {
@@ -77,12 +76,12 @@ const Predictions: React.FC = () => {
   };
 
   const startPolling = () => {
-    if (polling || !user?.id) return;
+    if (polling) return;
     
     setPolling(true);
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const response = await predictionsAPI.getPredictions(user.id);
+        const response = await predictionsAPI.getPredictions();
         const data: PredictionListResponse = response.data;
         
         if (data.success) {
@@ -134,11 +133,10 @@ const Predictions: React.FC = () => {
   };
 
   const handleDownload = async (predictionId: string) => {
-    if (!user?.id) return;
-    
+    // JWT token handles authentication - no need to check user?.id
     try {
       setDownloading(predictionId);
-      const response = await predictionsAPI.downloadPrediction(predictionId, user.id);
+      const response = await predictionsAPI.downloadPrediction(predictionId);
       
       // Handle redirect URL response
       if (response.data.success && response.data.download_url) {

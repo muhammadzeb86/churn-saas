@@ -86,15 +86,12 @@ export const uploadAPI = {
 };
 
 export const predictionsAPI = {
-  getPredictions: (userId: string) => api.get('/api/predictions', {
-    params: { user_id: userId }
-  }),
-  getPredictionDetail: (id: string, userId: string) => api.get(`/api/predictions/${id}`, {
-    params: { user_id: userId }
-  }),
-  downloadPrediction: (id: string, userId: string) => api.get(`/api/predictions/download_predictions/${id}`, {
-    params: { user_id: userId }
-  }),
+  // User ID is extracted from JWT token on backend
+  getPredictions: () => api.get('/api/predictions'),
+  
+  getPredictionDetail: (id: string) => api.get(`/api/predictions/${id}`),
+  
+  downloadPrediction: (id: string) => api.get(`/api/predictions/download_predictions/${id}`),
 };
 
 export const powerbiAPI = {
