@@ -104,9 +104,11 @@ class TestAPI:
     @pytest.mark.asyncio
     async def test_predictions_unauthorized(self, async_client: AsyncClient):
         """Test predictions endpoint without authentication"""
-        response = await async_client.get("/api/predictions")
-        # Should return 422 for missing query parameters or 401 for auth
-        assert response.status_code in [401, 403, 422]
+        # Note: Predictions now requires JWT authentication only (no query params)
+        # Router is mounted at /api/predictions with route "/" = full path "/api/predictions/"
+        response = await async_client.get("/api/predictions/")
+        # Should return 401 for missing authentication
+        assert response.status_code == 401
     
     @pytest.mark.asyncio
     async def test_uploads_unauthorized(self, async_client: AsyncClient):
