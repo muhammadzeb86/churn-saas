@@ -87,11 +87,47 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="RetainWise Analytics API",
     description="Production-ready customer retention analytics with ML-powered churn prediction",
-    version="2.0.0",
+    version="2.0.1",  # Deployment: Nov 1, 2025 - CORS middleware order fix
     lifespan=lifespan
 )
 
-# Error handler middleware (must be first to catch all exceptions)
+# ✅ CRITICAL: CORS MUST BE ADDED FIRST
+# FastAPI middleware runs in REVERSE order - first added runs last (outermost layer)
+# CORS must wrap ALL other middleware to ensure headers are added to ALL responses
+#
+# IMPORTANT: When allow_credentials=True, wildcards are converted to explicit lists
+# by FastAPI internally. Using explicit lists for maximum browser compatibility.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://app.retainwiseanalytics.com",  # Primary frontend
+        "http://localhost:3000",                 # Local development
+        "https://retainwiseanalytics.com",       # Root domain
+        "https://www.retainwiseanalytics.com",   # WWW variant
+    ],
+    allow_credentials=True,
+    # Explicit methods for maximum compatibility with multipart/form-data
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
+    # Explicit headers - critical for file uploads and JWT authentication
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Type",      # Critical for multipart/form-data uploads
+        "Content-Length",
+        "Authorization",     # Critical for JWT authentication
+        "X-Requested-With",
+        "X-Request-ID",
+        "Origin",
+        "User-Agent",
+        "DNT",
+        "Cache-Control",
+        "Referer",
+    ],
+    expose_headers=["Content-Length", "Content-Type", "Content-Disposition", "X-Request-ID"],
+    max_age=3600,  # Cache preflight for 1 hour
+)
+
+# Error handler middleware (must be early to catch all exceptions)
 app.middleware("http")(error_handler_middleware)
 
 # Security middleware (order matters - these run in reverse order)
@@ -102,24 +138,6 @@ app.middleware("http")(security_logging_middleware)
 
 # Setup global error handlers
 setup_error_handlers(app)
-
-# ✅ HIGHWAY-GRADE CORS Configuration
-# Uses wildcards for methods/headers to work around FastAPI multipart/form-data bug
-# See: https://github.com/encode/starlette/issues/1441
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://app.retainwiseanalytics.com",  # Primary frontend
-        "http://localhost:3000",                 # Local development
-        "https://retainwiseanalytics.com",       # Root domain
-        "https://www.retainwiseanalytics.com",   # WWW variant
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],  # Wildcard prevents method validation issues with multipart
-    allow_headers=["*"],  # Wildcard prevents header stripping for file uploads
-    expose_headers=["Content-Length", "Content-Type", "Content-Disposition"],
-    max_age=3600,
-)
 
 # Include API routes
 app.include_router(predict.router, prefix="/api", tags=["predictions"])
