@@ -61,7 +61,8 @@ export const dataAPI = {
       timeout: 120000, // 2 minutes for large file uploads
     });
   },
-  getPredictions: () => api.get('/api/predictions'),
+  // ✅ CRITICAL: Add trailing slash to match backend router structure
+  getPredictions: () => api.get('/api/predictions/'),
 };
 
 export const uploadAPI = {
@@ -87,11 +88,14 @@ export const uploadAPI = {
 
 export const predictionsAPI = {
   // User ID is extracted from JWT token on backend
-  getPredictions: () => api.get('/api/predictions'),
+  // ✅ CRITICAL: Add trailing slashes to match backend router structure
+  // Backend router mounted at /api/predictions with routes defined as "/" 
+  // FastAPI requires trailing slash for consistency, eliminates 307 redirects
+  getPredictions: () => api.get('/api/predictions/'),
   
-  getPredictionDetail: (id: string) => api.get(`/api/predictions/${id}`),
+  getPredictionDetail: (id: string) => api.get(`/api/predictions/${id}/`),
   
-  downloadPrediction: (id: string) => api.get(`/api/predictions/download_predictions/${id}`),
+  downloadPrediction: (id: string) => api.get(`/api/predictions/download_predictions/${id}/`),
 };
 
 export const powerbiAPI = {
