@@ -2,6 +2,7 @@
 import uuid
 import enum
 from sqlalchemy import String, Integer, DateTime, Index, ForeignKey, Text, Column, Boolean, Enum, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.api.database import Base
 
@@ -106,10 +107,10 @@ class Lead(Base):
 class Prediction(Base):
     __tablename__ = "predictions"
 
-    id: Mapped[str] = mapped_column(
-        String(36), 
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), 
         primary_key=True, 
-        default=lambda: str(uuid.uuid4())
+        default=uuid.uuid4
     )
     upload_id: Mapped[int] = mapped_column(
         ForeignKey("uploads.id", ondelete="CASCADE"), 

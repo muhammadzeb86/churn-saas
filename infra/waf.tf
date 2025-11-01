@@ -8,12 +8,14 @@ resource "aws_wafv2_web_acl" "main" {
   }
 
   # AWS Managed Rules - Common Rule Set
+  # TEMPORARY: Changed to count mode to allow CSV file uploads
+  # CSV files can trigger various rules in this set
   rule {
     name     = "AWSManagedRulesCommonRuleSet"
     priority = 1
 
     override_action {
-      none {}
+      count {}  # Changed from none{} - logs but doesn't block
     }
 
     statement {
@@ -31,12 +33,14 @@ resource "aws_wafv2_web_acl" "main" {
   }
 
   # AWS Managed Rules - Known Bad Inputs
+  # TEMPORARY: Changed to count mode to allow CSV file uploads
+  # CSV files can contain patterns that trigger this rule
   rule {
     name     = "AWSManagedRulesKnownBadInputsRuleSet"
     priority = 2
 
     override_action {
-      none {}
+      count {}  # Changed from none{} - logs but doesn't block
     }
 
     statement {

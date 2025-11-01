@@ -5,9 +5,10 @@ import asyncio
 import logging
 import tempfile
 import os
+import uuid
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +22,7 @@ from backend.services.s3_service import s3_service
 
 logger = logging.getLogger(__name__)
 
-async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s3_key: str) -> None:
+async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: str, user_id: str, s3_key: str) -> None:
     """
     Process a single prediction task
     
@@ -31,11 +32,15 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
         user_id: ID of the user
         s3_key: S3 object key for the uploaded file
     """
+    # Convert prediction_id to UUID if it's a string
+    if isinstance(prediction_id, str):
+        prediction_id = uuid.UUID(prediction_id)
+    
     logger.info(
         "Starting prediction processing",
         extra={
             "event": "prediction_service_started",
-            "prediction_id": prediction_id,
+            "prediction_id": str(prediction_id),
             "upload_id": upload_id,
             "user_id": user_id,
             "s3_key": s3_key
@@ -61,7 +66,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
                     "Prediction already completed, skipping",
                     extra={
                         "event": "prediction_already_completed",
-                        "prediction_id": prediction_id
+                        "prediction_id": str(prediction_id)
                     }
                 )
                 return
@@ -80,7 +85,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
             "Downloading input file from S3",
             extra={
                 "event": "s3_download_started",
-                "prediction_id": prediction_id,
+                "prediction_id": str(prediction_id),
                 "s3_key": s3_key
             }
         )
@@ -101,7 +106,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
             "Successfully downloaded input file",
             extra={
                 "event": "s3_download_completed",
-                "prediction_id": prediction_id,
+                "prediction_id": str(prediction_id),
                 "local_path": temp_input_file.name
             }
         )
@@ -142,7 +147,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
             "ML prediction processing completed",
             extra={
                 "event": "ml_processing_completed",
-                "prediction_id": prediction_id,
+                "prediction_id": str(prediction_id),
                 "rows_processed": metrics["rows_processed"],
                 "positive_rate": metrics["positive_rate"]
             }
@@ -165,7 +170,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
             "Uploading prediction results to S3",
             extra={
                 "event": "s3_upload_started",
-                "prediction_id": prediction_id,
+                "prediction_id": str(prediction_id),
                 "output_s3_key": output_s3_key
             }
         )
@@ -189,7 +194,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
             "Successfully uploaded prediction results",
             extra={
                 "event": "s3_upload_completed",
-                "prediction_id": prediction_id,
+                "prediction_id": str(prediction_id),
                 "s3_key": actual_s3_key
             }
         )
@@ -226,7 +231,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
             "Prediction processing completed successfully",
             extra={
                 "event": "prediction_service_completed",
-                "prediction_id": prediction_id,
+                "prediction_id": str(prediction_id),
                 "upload_id": upload_id,
                 "user_id": user_id,
                 "rows_processed": metrics["rows_processed"],
@@ -239,7 +244,7 @@ async def process_prediction(prediction_id: str, upload_id: str, user_id: str, s
             f"Prediction processing failed: {str(e)}",
             extra={
                 "event": "prediction_service_failed",
-                "prediction_id": prediction_id,
+                "prediction_id": str(prediction_id),
                 "upload_id": upload_id,
                 "user_id": user_id,
                 "error": str(e)

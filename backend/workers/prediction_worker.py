@@ -6,6 +6,7 @@ import json
 import logging
 import signal
 import sys
+import uuid
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -113,20 +114,26 @@ class PredictionWorker:
             # Parse message body
             body = json.loads(message['Body'])
             
-            prediction_id = body.get('prediction_id')
+            prediction_id_str = body.get('prediction_id')
             upload_id = body.get('upload_id')
             user_id = body.get('user_id')
             s3_key = body.get('s3_key')
             
             # Validate required fields
-            if not all([prediction_id, upload_id, user_id, s3_key]):
+            if not all([prediction_id_str, upload_id, user_id, s3_key]):
                 raise ValueError(f"Missing required fields in message: {body}")
+            
+            # Convert prediction_id from string to UUID
+            try:
+                prediction_id = uuid.UUID(prediction_id_str)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid prediction_id format: {prediction_id_str}") from e
             
             logger.info(
                 "Processing prediction task",
                 extra={
                     "event": "prediction_processing_started",
-                    "prediction_id": prediction_id,
+                    "prediction_id": str(prediction_id),
                     "upload_id": upload_id,
                     "user_id": user_id
                 }
@@ -147,7 +154,7 @@ class PredictionWorker:
                         f"Prediction {prediction_id} not found in database",
                         extra={
                             "event": "prediction_not_found",
-                            "prediction_id": prediction_id
+                            "prediction_id": str(prediction_id)
                         }
                     )
                     return  # Message will be deleted
@@ -158,7 +165,7 @@ class PredictionWorker:
                         f"Prediction {prediction_id} already in final state: {prediction.status}",
                         extra={
                             "event": "prediction_already_processed",
-                            "prediction_id": prediction_id,
+                            "prediction_id": str(prediction_id),
                             "status": prediction.status.value
                         }
                     )
@@ -173,7 +180,7 @@ class PredictionWorker:
                     "Prediction status updated to RUNNING",
                     extra={
                         "event": "prediction_status_updated",
-                        "prediction_id": prediction_id,
+                        "prediction_id": str(prediction_id),
                         "status": "RUNNING"
                     }
                 )
@@ -185,7 +192,7 @@ class PredictionWorker:
                 "Prediction processing completed",
                 extra={
                     "event": "prediction_processing_completed",
-                    "prediction_id": prediction_id,
+                    "prediction_id": str(prediction_id),
                     "upload_id": upload_id,
                     "user_id": user_id
                 }
@@ -211,7 +218,7 @@ class PredictionWorker:
                                 "Prediction status updated to FAILED",
                                 extra={
                                     "event": "prediction_processing_failed",
-                                    "prediction_id": self.current_prediction_id,
+                                    "prediction_id": str(self.current_prediction_id),
                                     "error": str(e)
                                 }
                             )
