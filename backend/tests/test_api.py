@@ -107,8 +107,11 @@ class TestAPI:
         # Note: Predictions now requires JWT authentication only (no query params)
         # Router is mounted at /api/predictions with route "/" = full path "/api/predictions/"
         response = await async_client.get("/api/predictions/")
-        # Should return 401 for missing authentication
-        assert response.status_code == 401
+        # FastAPI HTTPBearer returns 403 (Forbidden) when credentials are missing
+        # This is standard Starlette security behavior (not 401 Unauthorized)
+        # 403 = "I know who you're NOT (missing credentials), access denied"
+        # 401 = "I don't know who you are (invalid credentials), authenticate yourself"
+        assert response.status_code == 403
     
     @pytest.mark.asyncio
     async def test_uploads_unauthorized(self, async_client: AsyncClient):
