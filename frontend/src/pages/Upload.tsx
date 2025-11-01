@@ -24,6 +24,7 @@ const Upload: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [uploadResponse, setUploadResponse] = useState<UploadResponse | null>(null);
@@ -71,6 +72,7 @@ const Upload: React.FC = () => {
     if (!file || !user) return;
 
     setUploading(true);
+    setUploadProgress(0);
     setError(null);
     setSuccess(false);
     setUploadResponse(null);
@@ -80,7 +82,10 @@ const Upload: React.FC = () => {
     formData.append('user_id', user.id);
 
     try {
-      const response = await uploadAPI.uploadCSV(formData);
+      const response = await uploadAPI.uploadCSV(formData, (progress) => {
+        setUploadProgress(progress);
+        console.log(`Upload progress: ${progress}%`);
+      });
       console.log('Upload successful:', response.data);
       
       setSuccess(true);
@@ -107,6 +112,7 @@ const Upload: React.FC = () => {
       setError(errorMessage);
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -154,6 +160,21 @@ const Upload: React.FC = () => {
               />
             </div>
           </div>
+
+          {uploading && uploadProgress > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Uploading...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-primary-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">

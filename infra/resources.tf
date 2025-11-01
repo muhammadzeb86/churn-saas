@@ -327,6 +327,7 @@ resource "aws_lb" "main" {
   subnets            = [data.aws_subnet.public_1.id, data.aws_subnet.public_2.id]
 
   enable_deletion_protection = false
+  idle_timeout               = 120  # 120 seconds for large file uploads
 
   tags = {
     Name = "retainwise-alb"
@@ -339,6 +340,8 @@ resource "aws_lb_target_group" "backend" {
   protocol = "HTTP"
   vpc_id   = data.aws_vpc.existing.id
   target_type = "ip"
+  
+  deregistration_delay = 30  # Graceful shutdown: 30 seconds for in-flight requests
 
   health_check {
     enabled             = true

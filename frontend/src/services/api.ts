@@ -55,10 +55,10 @@ export const dataAPI = {
   uploadFile: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
+    // ✅ DO NOT set Content-Type manually for multipart/form-data
+    // Axios automatically sets it with the correct boundary parameter
     return api.post('/api/csv', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      timeout: 120000, // 2 minutes for large file uploads
     });
   },
   getPredictions: () => api.get('/api/predictions'),
@@ -68,11 +68,19 @@ export const uploadAPI = {
   getUploads: (userId: string) => api.get('/api/uploads', {
     params: { user_id: userId }
   }),
-  uploadCSV: (formData: FormData) => api.post('/api/csv', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  }),
+  uploadCSV: (formData: FormData, onProgress?: (percentCompleted: number) => void) => 
+    api.post('/api/csv', formData, {
+      // ✅ DO NOT set Content-Type manually for multipart/form-data
+      // Axios automatically sets it with the correct boundary parameter
+      headers: {},
+      timeout: 120000, // 2 minutes for large file uploads
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        }
+      },
+    }),
 };
 
 export const predictionsAPI = {
