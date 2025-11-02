@@ -39,7 +39,9 @@ resource "aws_iam_policy" "cicd_ecs_deployment" {
         ]
         Resource = [
           aws_iam_role.ecs_task_execution.arn,
-          aws_iam_role.ecs_task.arn
+          aws_iam_role.ecs_task.arn,
+          aws_iam_role.backend_task_role.arn,
+          aws_iam_role.worker_task_role.arn
         ]
         Condition = {
           StringEquals = {
@@ -87,6 +89,35 @@ resource "aws_iam_policy" "cicd_ecs_deployment" {
           aws_cloudwatch_log_group.backend.arn,
           aws_cloudwatch_log_group.worker.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeAvailabilityZones"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:GetQueueUrl",
+          "sqs:GetQueueAttributes"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
       }
     ]
   })
