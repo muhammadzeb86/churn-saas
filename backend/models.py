@@ -144,6 +144,17 @@ class Prediction(Base):
         Text, 
         nullable=True
     )
+    # SQS metadata (Task 1.1)
+    sqs_message_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="SQS MessageId for tracking"
+    )
+    sqs_queued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When message was published to SQS"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

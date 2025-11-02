@@ -76,9 +76,10 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
   cpu                      = 256
   memory                   = 512
 
-  # Use same execution role as backend
+  # Execution role for ECS task management (pulling images, logs)
   execution_role_arn = aws_iam_role.ecs_task_execution.arn
-  task_role_arn      = aws_iam_role.ecs_task.arn
+  # Task role for application permissions (SQS, S3, RDS)
+  task_role_arn      = aws_iam_role.worker_task_role.arn
 
   container_definitions = jsonencode([
     {
@@ -103,7 +104,15 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
           value = aws_sqs_queue.predictions_queue.url
         },
         {
+          name  = "ENABLE_SQS"
+          value = "true"
+        },
+        {
           name  = "S3_BUCKET"
+          value = aws_s3_bucket.uploads.bucket
+        },
+        {
+          name  = "PREDICTIONS_BUCKET"
           value = aws_s3_bucket.uploads.bucket
         },
         {
