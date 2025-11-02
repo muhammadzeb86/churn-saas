@@ -186,22 +186,49 @@ jobs:
       run: |
         cd infra
         terraform apply -auto-approve tfplan
+    
+    - name: Get SQS queue URL from Terraform
+      id: get-queue-url
+      run: |
+        cd infra
+        QUEUE_URL=$(terraform output -raw predictions_queue_url 2>/dev/null || echo "")
+        if [ -z "$QUEUE_URL" ]; then
+          echo "⚠️  Queue URL not found in Terraform outputs, trying AWS CLI..."
+          QUEUE_URL=$(aws sqs get-queue-url --queue-name prod-retainwise-predictions-queue --query 'QueueUrl' --output text 2>/dev/null || echo "")
+        fi
+        echo "predictions_queue_url=$QUEUE_URL" >> $GITHUB_OUTPUT
+        echo "Queue URL: $QUEUE_URL"
         
     - name: Download task definition
       run: |
         aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION \
-        --query taskDefinition > task-definition.json
+          --query taskDefinition > task-definition.json
         
-    - name: Update task definition with version tracking
+    - name: Update task definition with version tracking and SQS
       run: |
-        # Add version tracking environment variables to task definition
-        jq '.containerDefinitions[0].environment += [
-          {"name": "GIT_COMMIT_SHA", "value": "'${{ github.sha }}'"},
-          {"name": "BUILD_TIME", "value": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"},
-          {"name": "DEPLOYMENT_ID", "value": "deploy-${{ github.run_number }}"},
-          {"name": "APP_VERSION", "value": "2.0.0"},
-          {"name": "ENVIRONMENT", "value": "production"}
-        ]' task-definition.json > task-definition-updated.json
+        # Add version tracking + SQS environment variables to task definition
+        # Build the jq command dynamically based on whether queue URL was found
+        if [ -n "${{ steps.get-queue-url.outputs.predictions_queue_url }}" ]; then
+          jq '.containerDefinitions[0].environment += [
+            {"name": "GIT_COMMIT_SHA", "value": "'${{ github.sha }}'"},
+            {"name": "BUILD_TIME", "value": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"},
+            {"name": "DEPLOYMENT_ID", "value": "deploy-${{ github.run_number }}"},
+            {"name": "APP_VERSION", "value": "2.0.0"},
+            {"name": "ENVIRONMENT", "value": "production"},
+            {"name": "PREDICTIONS_QUEUE_URL", "value": "'${{ steps.get-queue-url.outputs.predictions_queue_url }}'"},
+            {"name": "ENABLE_SQS", "value": "true"}
+          ]' task-definition.json > task-definition-updated.json
+          echo "✅ Added SQS environment variables"
+        else
+          jq '.containerDefinitions[0].environment += [
+            {"name": "GIT_COMMIT_SHA", "value": "'${{ github.sha }}'"},
+            {"name": "BUILD_TIME", "value": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"},
+            {"name": "DEPLOYMENT_ID", "value": "deploy-${{ github.run_number }}"},
+            {"name": "APP_VERSION", "value": "2.0.0"},
+            {"name": "ENVIRONMENT", "value": "production"}
+          ]' task-definition.json > task-definition-updated.json
+          echo "⚠️  Queue URL not found - SQS environment variables NOT added"
+        fi
         mv task-definition-updated.json task-definition.json
         
     - name: Fill in the new image ID in the Amazon ECS task definition
