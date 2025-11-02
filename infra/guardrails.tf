@@ -4,7 +4,7 @@
 # SNS Topic for alerts
 resource "aws_sns_topic" "alerts" {
   name = "retainwise-alerts"
-  
+
   tags = {
     Name        = "retainwise-alerts"
     Environment = "production"
@@ -14,20 +14,20 @@ resource "aws_sns_topic" "alerts" {
 
 # Lambda function for TD drift detection
 resource "aws_lambda_function" "td_guardrail" {
-  filename         = "lambda_td_guardrail.zip"
-  function_name    = "retainwise-td-guardrail"
-  role            = aws_iam_role.lambda_td_guardrail.arn
-  handler         = "lambda_td_guardrail.lambda_handler"
-  runtime         = "python3.11"
-  timeout         = 60
-  
+  filename      = "lambda_td_guardrail.zip"
+  function_name = "retainwise-td-guardrail"
+  role          = aws_iam_role.lambda_td_guardrail.arn
+  handler       = "lambda_td_guardrail.lambda_handler"
+  runtime       = "python3.11"
+  timeout       = 60
+
   environment {
     variables = {
       CLUSTER_NAME = "retainwise-cluster"
       SERVICE_NAME = "retainwise-service"
     }
   }
-  
+
   tags = {
     Name        = "retainwise-td-guardrail"
     Environment = "production"
@@ -38,7 +38,7 @@ resource "aws_lambda_function" "td_guardrail" {
 # IAM role for Lambda
 resource "aws_iam_role" "lambda_td_guardrail" {
   name = "retainwise-lambda-td-guardrail-role"
-  
+
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -51,7 +51,7 @@ resource "aws_iam_role" "lambda_td_guardrail" {
       }
     ]
   })
-  
+
   tags = {
     Name = "retainwise-lambda-td-guardrail-role"
   }
@@ -60,7 +60,7 @@ resource "aws_iam_role" "lambda_td_guardrail" {
 # IAM policy for Lambda permissions
 resource "aws_iam_policy" "lambda_td_guardrail" {
   name = "retainwise-lambda-td-guardrail-policy"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -120,7 +120,7 @@ resource "aws_cloudwatch_event_rule" "td_drift_check" {
   name                = "retainwise-td-drift-check"
   description         = "Check for task definition drift every 30 minutes (alert-only mode)"
   schedule_expression = "rate(30 minutes)"
-  
+
   tags = {
     Name        = "retainwise-td-drift-check"
     Environment = "production"

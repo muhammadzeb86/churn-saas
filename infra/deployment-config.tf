@@ -65,10 +65,10 @@ resource "aws_cloudwatch_metric_alarm" "service_health" {
 output "deployment_configuration" {
   description = "ECS deployment configuration details"
   value = {
-    maximum_percent         = 200
-    minimum_healthy_percent = 50
-    circuit_breaker_enabled = true
-    circuit_breaker_rollback = true
+    maximum_percent           = 200
+    minimum_healthy_percent   = 50
+    circuit_breaker_enabled   = true
+    circuit_breaker_rollback  = true
     health_check_grace_period = 120
   }
 }

@@ -6,43 +6,43 @@ data "aws_iam_policy_document" "worker_permissions" {
   statement {
     sid    = "AllowSQSWorkerOperations"
     effect = "Allow"
-    
+
     actions = [
       "sqs:ReceiveMessage",
       "sqs:DeleteMessage",
       "sqs:ChangeMessageVisibility"
     ]
-    
+
     resources = [
-      aws_sqs_queue.predictions.arn
+      aws_sqs_queue.predictions_queue.arn
     ]
   }
-  
+
   # S3 permissions for worker (read input, write output)
   statement {
     sid    = "AllowS3WorkerOperations"
     effect = "Allow"
-    
+
     actions = [
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject"
     ]
-    
+
     resources = [
       "${aws_s3_bucket.uploads.arn}/*"
     ]
   }
-  
+
   # S3 bucket listing (for validation)
   statement {
     sid    = "AllowS3BucketListing"
     effect = "Allow"
-    
+
     actions = [
       "s3:ListBucket"
     ]
-    
+
     resources = [
       aws_s3_bucket.uploads.arn
     ]
@@ -64,18 +64,18 @@ resource "aws_iam_policy" "worker_permissions" {
 
 # Attach worker permissions to existing ECS task role
 resource "aws_iam_role_policy_attachment" "worker_permissions" {
-  role       = "retainwise-ecs-task-role"  # Reuse existing task role
+  role       = "retainwise-ecs-task-role" # Reuse existing task role
   policy_arn = aws_iam_policy.worker_permissions.arn
 }
 
 # ECS Task Definition for Worker
 resource "aws_ecs_task_definition" "retainwise_worker" {
   family                   = "retainwise-worker"
-  network_mode            = "awsvpc"
+  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                     = 256
-  memory                  = 512
-  
+  cpu                      = 256
+  memory                   = 512
+
   # Use same execution role as backend
   execution_role_arn = aws_iam_role.ecs_task_execution.arn
   task_role_arn      = aws_iam_role.ecs_task.arn
@@ -84,10 +84,10 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
     {
       name  = "worker"
       image = "${aws_ecr_repository.backend.repository_url}:latest"
-      
+
       # Worker command override
       command = ["python", "-m", "backend.worker_main"]
-      
+
       # Environment variables
       environment = [
         {
@@ -100,18 +100,18 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
         },
         {
           name  = "PREDICTIONS_QUEUE_URL"
-          value = aws_sqs_queue.predictions.url
+          value = aws_sqs_queue.predictions_queue.url
         },
-                          {
-           name  = "S3_BUCKET"
-           value = aws_s3_bucket.uploads.bucket
-         },
-         {
-           name  = "DATABASE_URL"
-           value = "postgresql://${aws_db_instance.main.username}:${aws_db_instance.main.password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
-         }
-       ]
-      
+        {
+          name  = "S3_BUCKET"
+          value = aws_s3_bucket.uploads.bucket
+        },
+        {
+          name  = "DATABASE_URL"
+          value = "postgresql://${aws_db_instance.main.username}:${aws_db_instance.main.password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+        }
+      ]
+
       # CloudWatch Logs
       logConfiguration = {
         logDriver = "awslogs"
@@ -121,11 +121,11 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
           "awslogs-stream-prefix" = "ecs"
         }
       }
-      
+
       # Resource limits
       cpu    = 256
       memory = 512
-      
+
       # Health check (optional - worker doesn't expose ports)
       essential = true
     }
@@ -157,7 +157,7 @@ resource "aws_ecs_service" "retainwise_worker" {
   task_definition = aws_ecs_task_definition.retainwise_worker.arn
   desired_count   = 1
   launch_type     = "FARGATE"
-  
+
   # Network configuration
   network_configuration {
     subnets          = [data.aws_subnet.public_1.id, data.aws_subnet.public_2.id]
@@ -180,10 +180,10 @@ resource "aws_ecs_service" "retainwise_worker" {
       desired_count
     ]
   }
-  
+
   # Depend on queue and IAM policies
   depends_on = [
-    aws_sqs_queue.predictions,
+    aws_sqs_queue.predictions_queue,
     aws_iam_role_policy_attachment.worker_permissions
   ]
 
@@ -195,29 +195,15 @@ resource "aws_ecs_service" "retainwise_worker" {
   }
 }
 
-# Dead Letter Queue for failed predictions (optional but recommended)
-resource "aws_sqs_queue" "predictions_dlq" {
-  name = "predictions-dlq"
-  
-  # Retain failed messages for investigation
-  message_retention_seconds = 1209600  # 14 days
-
-  tags = {
-    Name        = "predictions-dlq"
-    Environment = "production"
-    Service     = "retainwise-backend"
-  }
-}
-
-# Update main queue to use DLQ
-resource "aws_sqs_queue_redrive_policy" "predictions_redrive" {
-  queue_url = aws_sqs_queue.predictions.id
-
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.predictions_dlq.arn
-    maxReceiveCount     = 3  # Retry 3 times before sending to DLQ
-  })
-}
+# =====================================================
+# SQS QUEUE CONFIGURATION MOVED TO sqs-predictions.tf
+# =====================================================
+# The predictions queue and DLQ are now defined in sqs-predictions.tf
+# This provides a more comprehensive setup with:
+# - Resource-based queue policies
+# - CloudWatch alarms
+# - Proper IAM role separation
+# =====================================================
 
 # Outputs
 output "worker_service_name" {
@@ -230,7 +216,4 @@ output "worker_log_group" {
   value       = aws_cloudwatch_log_group.worker.name
 }
 
-output "predictions_dlq_url" {
-  description = "URL of the predictions dead letter queue"
-  value       = aws_sqs_queue.predictions_dlq.url
-} 
+# predictions_dlq_url output moved to sqs-predictions.tf 

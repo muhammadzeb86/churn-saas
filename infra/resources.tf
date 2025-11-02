@@ -304,17 +304,22 @@ resource "aws_db_instance" "main" {
   parameter_group_name   = aws_db_parameter_group.main.name
 
   backup_retention_period = 7
-  backup_window          = "03:00-04:00"
-  maintenance_window     = "sun:04:00-sun:05:00"
+  backup_window           = "03:00-04:00"
+  maintenance_window      = "sun:04:00-sun:05:00"
 
-  skip_final_snapshot       = true
-  deletion_protection       = false
-  delete_automated_backups  = true
-  
+  skip_final_snapshot      = true
+  deletion_protection      = false
+  delete_automated_backups = true
+
   publicly_accessible = false
 
   tags = {
     Name = "retainwise-db"
+  }
+
+  # Ignore password changes since RDS instance already exists with password set
+  lifecycle {
+    ignore_changes = [password]
   }
 }
 
@@ -327,7 +332,7 @@ resource "aws_lb" "main" {
   subnets            = [data.aws_subnet.public_1.id, data.aws_subnet.public_2.id]
 
   enable_deletion_protection = false
-  idle_timeout               = 120  # 120 seconds for large file uploads
+  idle_timeout               = 120 # 120 seconds for large file uploads
 
   tags = {
     Name = "retainwise-alb"
@@ -335,13 +340,13 @@ resource "aws_lb" "main" {
 }
 
 resource "aws_lb_target_group" "backend" {
-  name     = "retainwise-backend-tg"
-  port     = 8000
-  protocol = "HTTP"
-  vpc_id   = data.aws_vpc.existing.id
+  name        = "retainwise-backend-tg"
+  port        = 8000
+  protocol    = "HTTP"
+  vpc_id      = data.aws_vpc.existing.id
   target_type = "ip"
-  
-  deregistration_delay = 30  # Graceful shutdown: 30 seconds for in-flight requests
+
+  deregistration_delay = 30 # Graceful shutdown: 30 seconds for in-flight requests
 
   health_check {
     enabled             = true
@@ -463,9 +468,9 @@ resource "aws_ecs_service" "backend" {
   # COST-SAVING DEV/TEST CONFIG: Using public subnets to avoid NAT Gateway costs
   # WARNING: This is NOT recommended for production use
   network_configuration {
-    subnets         = ["subnet-0d539fd1a67a870ec", "subnet-03dcb4c3648af8f4d"]  # Public subnets
-    security_groups = [aws_security_group.ecs.id]
-    assign_public_ip = true  # Assign public IPs to avoid NAT Gateway dependency
+    subnets          = ["subnet-0d539fd1a67a870ec", "subnet-03dcb4c3648af8f4d"] # Public subnets
+    security_groups  = [aws_security_group.ecs.id]
+    assign_public_ip = true # Assign public IPs to avoid NAT Gateway dependency
   }
 
   load_balancer {
@@ -501,12 +506,12 @@ resource "aws_ecs_service" "backend" {
 
 # Lambda function for ECS scaling
 resource "aws_lambda_function" "ecs_scaling" {
-  filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "retainwise-ecs-scaling"
-  role            = aws_iam_role.lambda_ecs_scaling.arn
-  handler         = "lambda_ecs_scaling.lambda_handler"
-  runtime         = "python3.9"
-  timeout         = 30
+  filename      = data.archive_file.lambda_zip.output_path
+  function_name = "retainwise-ecs-scaling"
+  role          = aws_iam_role.lambda_ecs_scaling.arn
+  handler       = "lambda_ecs_scaling.lambda_handler"
+  runtime       = "python3.9"
+  timeout       = 30
 
   environment {
     variables = {
@@ -577,7 +582,7 @@ resource "aws_iam_role_policy_attachment" "lambda_ecs_scaling" {
 resource "aws_cloudwatch_event_rule" "ecs_scale_down" {
   name                = "retainwise-ecs-scale-down"
   description         = "Scale down ECS service to 0 tasks at 00:01 AM UK time"
-  schedule_expression = "cron(1 0 * * ? *)"  # 00:01 AM UTC (01:01 AM BST in summer)
+  schedule_expression = "cron(1 0 * * ? *)" # 00:01 AM UTC (01:01 AM BST in summer)
 
   tags = {
     Name = "retainwise-ecs-scale-down"
@@ -588,7 +593,7 @@ resource "aws_cloudwatch_event_rule" "ecs_scale_down" {
 resource "aws_cloudwatch_event_rule" "ecs_scale_up" {
   name                = "retainwise-ecs-scale-up"
   description         = "Scale up ECS service to 1 task at 5:00 PM UK time"
-  schedule_expression = "cron(0 17 * * ? *)"  # 17:00 UTC (18:00 BST in summer)
+  schedule_expression = "cron(0 17 * * ? *)" # 17:00 UTC (18:00 BST in summer)
 
   tags = {
     Name = "retainwise-ecs-scale-up"

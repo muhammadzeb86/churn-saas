@@ -8,7 +8,7 @@ resource "aws_ssm_parameter" "golden_task_definition" {
   value = aws_ecs_task_definition.backend.arn
 
   description = "Golden task definition ARN - authoritative source of truth for production deployments"
-  
+
   tags = {
     Name        = "retainwise-golden-td"
     Environment = "production"

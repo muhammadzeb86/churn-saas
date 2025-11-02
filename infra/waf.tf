@@ -15,7 +15,7 @@ resource "aws_wafv2_web_acl" "main" {
     priority = 1
 
     override_action {
-      count {}  # Changed from none{} - logs but doesn't block
+      count {} # Changed from none{} - logs but doesn't block
     }
 
     statement {
@@ -40,7 +40,7 @@ resource "aws_wafv2_web_acl" "main" {
     priority = 2
 
     override_action {
-      count {}  # Changed from none{} - logs but doesn't block
+      count {} # Changed from none{} - logs but doesn't block
     }
 
     statement {
@@ -66,7 +66,7 @@ resource "aws_wafv2_web_acl" "main" {
     priority = 3
 
     override_action {
-      count {}  # Changed from none{} - logs but doesn't block
+      count {} # Changed from none{} - logs but doesn't block
     }
 
     statement {

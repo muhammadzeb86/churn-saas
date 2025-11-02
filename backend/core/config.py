@@ -15,6 +15,34 @@ class Settings:
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     PREDICTIONS_QUEUE_URL: str = os.getenv("PREDICTIONS_QUEUE_URL", "")
     
+    # SQS Configuration
+    SQS_VISIBILITY_TIMEOUT: int = int(os.getenv("SQS_VISIBILITY_TIMEOUT", "300"))
+    SQS_WAIT_TIME_SECONDS: int = int(os.getenv("SQS_WAIT_TIME_SECONDS", "20"))
+    SQS_MAX_MESSAGES: int = int(os.getenv("SQS_MAX_MESSAGES", "1"))
+    ENABLE_SQS: bool = os.getenv("ENABLE_SQS", "true").lower() in ["true", "1", "yes"]
+    
+    @property
+    def is_sqs_enabled(self) -> bool:
+        """Check if SQS is properly configured and enabled"""
+        if not self.ENABLE_SQS:
+            return False
+        if not self.PREDICTIONS_QUEUE_URL:
+            return False
+        if not self.PREDICTIONS_QUEUE_URL.startswith("https://sqs."):
+            logger.warning(f"Invalid SQS queue URL format: {self.PREDICTIONS_QUEUE_URL}")
+            return False
+        return True
+    
+    @property
+    def sqs_queue_name(self) -> Optional[str]:
+        """Extract queue name from queue URL"""
+        if not self.PREDICTIONS_QUEUE_URL:
+            return None
+        try:
+            return self.PREDICTIONS_QUEUE_URL.split('/')[-1]
+        except Exception:
+            return None
+    
     # S3 Configuration (existing)
     S3_BUCKET: str = os.getenv("S3_BUCKET", "retainwise-uploads")
     PREDICTIONS_BUCKET: str = os.getenv("PREDICTIONS_BUCKET", os.getenv("S3_BUCKET", "retainwise-uploads"))

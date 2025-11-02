@@ -3,12 +3,12 @@ data "aws_iam_policy_document" "secrets_manager_access" {
   statement {
     sid    = "AllowSecretsManagerAccess"
     effect = "Allow"
-    
+
     actions = [
       "secretsmanager:GetSecretValue",
       "secretsmanager:DescribeSecret"
     ]
-    
+
     resources = [
       "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:*"
     ]

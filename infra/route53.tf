@@ -62,14 +62,14 @@ resource "aws_route53_record" "backend" {
 
 # Health check for the API endpoint
 resource "aws_route53_health_check" "api" {
-  fqdn                     = "api.retainwiseanalytics.com"
-  port                     = 80
-  type                     = "HTTP"
-  resource_path            = "/health"
-  failure_threshold        = 3
-  request_interval         = 30
-  enable_sni               = false
-  measure_latency          = true
+  fqdn              = "api.retainwiseanalytics.com"
+  port              = 80
+  type              = "HTTP"
+  resource_path     = "/health"
+  failure_threshold = 3
+  request_interval  = 30
+  enable_sni        = false
+  measure_latency   = true
 
   tags = {
     Name = "retainwiseanalytics-api-health-check"
@@ -146,4 +146,4 @@ resource "aws_cloudwatch_metric_alarm" "api_health_check" {
   tags = {
     Name = "retainwise-api-health-check-alarm"
   }
-} 
+}
