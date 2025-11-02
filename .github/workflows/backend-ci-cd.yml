@@ -153,39 +153,44 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
         
-    - name: Check for infrastructure changes
-      id: check-infra
-      run: |
-        # Check if any files in infra/ directory were modified
-        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^infra/"; then
-          echo "infra_changed=true" >> $GITHUB_OUTPUT
-        else
-          echo "infra_changed=false" >> $GITHUB_OUTPUT
-        fi
-        
+    # PRODUCTION-GRADE: Always run Terraform (idempotent, ensures consistency)
     - name: Setup Terraform
-      if: steps.check-infra.outputs.infra_changed == 'true'
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: "1.5.0"
         
     - name: Terraform Init
-      if: steps.check-infra.outputs.infra_changed == 'true'
       run: |
         cd infra
         terraform init
+        echo "✅ Terraform initialized"
         
     - name: Terraform Plan
-      if: steps.check-infra.outputs.infra_changed == 'true'
+      id: tf-plan
       run: |
         cd infra
-        terraform plan -out=tfplan
+        terraform plan -out=tfplan -detailed-exitcode || export TF_EXIT=$?
+        # Exit code 0 = no changes, 1 = error, 2 = changes present
+        if [ "$TF_EXIT" == "1" ]; then
+          echo "❌ Terraform plan failed"
+          exit 1
+        elif [ "$TF_EXIT" == "2" ]; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "✅ Infrastructure changes detected"
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          echo "ℹ️ No infrastructure changes"
+        fi
         
     - name: Terraform Apply
-      if: steps.check-infra.outputs.infra_changed == 'true'
       run: |
         cd infra
-        terraform apply -auto-approve tfplan
+        if [ -f tfplan ]; then
+          terraform apply -auto-approve tfplan
+          echo "✅ Terraform applied successfully"
+        else
+          echo "⚠️ No tfplan file found, skipping apply"
+        fi
     
     - name: Get SQS queue URL from Terraform
       id: get-queue-url
@@ -328,18 +333,8 @@ jobs:
         echo "✅ Deployment completed and verified successfully!"
         echo "✅ Service and golden task definition are in sync!"
           
-    - name: Check for database migration changes
-      id: check-migrations
-      run: |
-        # Check if any migration files were modified
-        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^backend/alembic/"; then
-          echo "migrations_changed=true" >> $GITHUB_OUTPUT
-        else
-          echo "migrations_changed=false" >> $GITHUB_OUTPUT
-        fi
-        
+    # PRODUCTION-GRADE: Always run migrations (Alembic is idempotent)
     - name: Run database migrations
-      if: steps.check-migrations.outputs.migrations_changed == 'true'
       run: |
         # Get subnet and security group IDs from the service
         SUBNET_IDS=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets[]' --output text | tr '\t' ',')

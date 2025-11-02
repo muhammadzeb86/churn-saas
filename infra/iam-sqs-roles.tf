@@ -147,6 +147,41 @@ resource "aws_iam_policy" "sqs_worker_policy" {
 }
 
 # ------------------------------------------------------
+# S3 ACCESS POLICY (Backend and Worker need S3 access)
+# ------------------------------------------------------
+resource "aws_iam_policy" "s3_full_access" {
+  name        = "${var.environment}-retainwise-s3-access"
+  description = "Allow access to RetainWise S3 bucket for uploads and predictions"
+  path        = "/retainwise/"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowS3Access"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::retainwise-uploads-${data.aws_caller_identity.current.account_id}",
+          "arn:aws:s3:::retainwise-uploads-${data.aws_caller_identity.current.account_id}/*"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "${var.environment}-s3-access-policy"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# ------------------------------------------------------
 # ATTACH POLICIES TO ROLES
 # ------------------------------------------------------
 resource "aws_iam_role_policy_attachment" "backend_sqs_send" {
@@ -154,9 +189,19 @@ resource "aws_iam_role_policy_attachment" "backend_sqs_send" {
   policy_arn = aws_iam_policy.sqs_send_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "backend_s3_access" {
+  role       = aws_iam_role.backend_task_role.name
+  policy_arn = aws_iam_policy.s3_full_access.arn
+}
+
 resource "aws_iam_role_policy_attachment" "worker_sqs_receive" {
   role       = aws_iam_role.worker_task_role.name
   policy_arn = aws_iam_policy.sqs_worker_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "worker_s3_access" {
+  role       = aws_iam_role.worker_task_role.name
+  policy_arn = aws_iam_policy.s3_full_access.arn
 }
 
 # ------------------------------------------------------
