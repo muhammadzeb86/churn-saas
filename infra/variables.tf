@@ -11,7 +11,7 @@ variable "aws_region" {
 variable "github_repository" {
   description = "GitHub repository in format owner/repo"
   type        = string
-  default     = "tahirahm3d/churn-saas"  # Update this to your actual repo
+  default     = "muhammadzeb86/churn-saas"
 }
 
 variable "db_password" {
