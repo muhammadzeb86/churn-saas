@@ -153,56 +153,21 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
         
-    # PRODUCTION-GRADE: Always run Terraform (idempotent, ensures consistency)
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: "1.5.0"
-        
-    - name: Terraform Init
-      run: |
-        cd infra
-        terraform init
-        echo "✅ Terraform initialized"
-        
-    - name: Terraform Plan
-      id: tf-plan
-      run: |
-        cd infra
-        terraform plan -out=tfplan -detailed-exitcode || export TF_EXIT=$?
-        # Exit code 0 = no changes, 1 = error, 2 = changes present
-        if [ "$TF_EXIT" == "1" ]; then
-          echo "❌ Terraform plan failed"
-          exit 1
-        elif [ "$TF_EXIT" == "2" ]; then
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-          echo "✅ Infrastructure changes detected"
-        else
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-          echo "ℹ️ No infrastructure changes"
-        fi
-        
-    - name: Terraform Apply
-      run: |
-        cd infra
-        if [ -f tfplan ]; then
-          terraform apply -auto-approve tfplan
-          echo "✅ Terraform applied successfully"
-        else
-          echo "⚠️ No tfplan file found, skipping apply"
-        fi
+    # OPTION 1: Manual deployment (Terraform deferred to Phase 4)
+    # Terraform steps temporarily disabled - infrastructure managed manually
+    # Will be re-enabled in Phase 4 with proper state management
     
-    - name: Get SQS queue URL from Terraform
+    - name: Get SQS queue URL from AWS
       id: get-queue-url
       run: |
-        cd infra
-        QUEUE_URL=$(terraform output -raw predictions_queue_url 2>/dev/null || echo "")
+        echo "Fetching SQS queue URL from AWS..."
+        QUEUE_URL=$(aws sqs get-queue-url --queue-name prod-retainwise-predictions-queue --query 'QueueUrl' --output text 2>/dev/null || echo "")
         if [ -z "$QUEUE_URL" ]; then
-          echo "⚠️  Queue URL not found in Terraform outputs, trying AWS CLI..."
-          QUEUE_URL=$(aws sqs get-queue-url --queue-name prod-retainwise-predictions-queue --query 'QueueUrl' --output text 2>/dev/null || echo "")
+          echo "⚠️  Queue URL not found, using default"
+          QUEUE_URL="https://sqs.us-east-1.amazonaws.com/908226940571/prod-retainwise-predictions-queue"
         fi
         echo "predictions_queue_url=$QUEUE_URL" >> $GITHUB_OUTPUT
-        echo "Queue URL: $QUEUE_URL"
+        echo "✅ Queue URL: $QUEUE_URL"
         
     - name: Download task definition
       run: |

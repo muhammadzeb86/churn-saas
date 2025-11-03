@@ -375,7 +375,7 @@ resource "aws_ecs_task_definition" "backend" {
   cpu                      = 256
   memory                   = 512
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
-  task_role_arn            = aws_iam_role.backend_task_role.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn  # Reverted to original for manual deployment
 
   container_definitions = jsonencode([
     {
