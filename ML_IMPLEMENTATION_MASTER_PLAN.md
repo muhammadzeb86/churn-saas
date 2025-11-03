@@ -19,7 +19,8 @@
 5. [Phase 1: Core ML Fixes](#phase-1-core-ml-fixes)
 6. [Phase 2: Production Hardening](#phase-2-production-hardening)
 7. [Phase 3: Scale & Optimize](#phase-3-scale-optimize)
-8. [Phase 4: Basic Visualizations (MVP LAUNCH)](#phase-4-basic-visualizations)
+8. [Phase 3.5: Infrastructure Hardening with Terraform](#phase-35-infrastructure-hardening-with-terraform)
+9. [Phase 4: Basic Visualizations (MVP LAUNCH)](#phase-4-basic-visualizations)
 9. [Code Implementation](#code-implementation)
 10. [Testing Strategy](#testing-strategy)
 11. [Deployment Guide](#deployment-guide)
@@ -61,8 +62,9 @@ Build a production-ready ML pipeline that:
 - **Phase 1:** Week 1 (46 hours) - Get predictions working + SHAP explainability + Remove PowerBI
 - **Phase 2:** Week 2 (32 hours) - Production hardening
 - **Phase 3:** Week 3-4 (24 hours) - Scale & optimize
-- **Phase 4:** Week 5-7 (80 hours) - Basic visualizations for MVP launch
-- **Total:** 182 hours over 7 weeks
+- **Phase 3.5:** Week 4-5 (20 hours) - Infrastructure hardening with Terraform (REQUIRED BEFORE PHASE 4)
+- **Phase 4:** Week 6-8 (80 hours) - Basic visualizations for MVP launch
+- **Total:** 202 hours over 8 weeks
 
 ### **MVP Launch Readiness**
 After Phase 4 completion, ready to launch with **2-tier pricing: $79 Starter / $149 Professional** with 14-day free trial.
@@ -1400,9 +1402,305 @@ s3://retainwise-models/
 
 ---
 
+## **🏗️ PHASE 3.5: INFRASTRUCTURE HARDENING WITH TERRAFORM**
+
+**Timeline:** Week 4-5 (20 hours)  
+**Goal:** Full Infrastructure-as-Code (IaC) with Terraform  
+**Deliverable:** Production-grade IaC with proper state management  
+**Priority:** P0 - CRITICAL (REQUIRED BEFORE PHASE 4)
+
+### **⚠️ CRITICAL CONTEXT: Why Phase 3.5 Is Required**
+
+**Current State (November 3, 2025):**
+- ✅ Task 1.2 deployed manually (Option 1 approach)
+- ✅ All AWS resources exist and working
+- ❌ Terraform removed from CI/CD pipeline
+- ❌ IAM roles managed manually
+- ❌ Technical debt: Infrastructure drift risk
+
+**Problem:**
+During Task 1.2 deployment (November 2-3, 2025), we encountered 6+ failed Terraform deployments due to:
+1. CI/CD IAM role missing permissions (EC2 Describe, SQS, IAM PassRole)
+2. IAM policy versioning conflicts (inline vs managed policies)
+3. Terraform state inconsistencies
+4. Complex permission dependencies
+
+**Decision:**
+Chose "Option 1: Manual Deployment" to deliver Task 1.2 faster:
+- ✅ Removed Terraform from GitHub Actions workflow
+- ✅ Manually attached S3 policies to IAM roles
+- ✅ Reverted task_role_arn to original in resources.tf
+- ✅ Result: Task 1.2 deployed successfully in 30 min vs 4-10 hours
+
+**Technical Debt:**
+- Infrastructure managed via AWS Console + manual CLI commands
+- No drift detection
+- No rollback capability
+- Risk of configuration inconsistencies
+
+**Phase 3.5 Resolution:**
+Before starting Phase 4 (visualizations), we **MUST** implement proper Terraform management to ensure:
+- Reproducible infrastructure
+- Safe deployments
+- Compliance readiness
+- Team collaboration support
+
+---
+
+### **Week 4: Terraform State & CI/CD Fix (12 hours)**
+
+#### **Task 3.5.1: Terraform State Management (6 hours)**
+**Priority:** P0 - CRITICAL  
+**Status:** ⏳ Not Started  
+**Estimated:** 6 hours  
+
+**Objectives:**
+1. **S3 Backend Configuration:**
+   ```hcl
+   # infra/backend.tf
+   terraform {
+     backend "s3" {
+       bucket         = "retainwise-terraform-state"
+       key            = "prod/terraform.tfstate"
+       region         = "us-east-1"
+       encrypt        = true
+       dynamodb_table = "retainwise-terraform-locks"
+     }
+   }
+   ```
+
+2. **Import Existing Resources:**
+   - Import all manually created resources into Terraform state
+   - Verify state matches actual AWS resources
+   - Create import scripts for reproducibility
+
+3. **State Locking with DynamoDB:**
+   - Prevent concurrent Terraform runs
+   - Ensure consistency across team/CI
+
+**Commands:**
+```bash
+# Create S3 bucket for state
+aws s3api create-bucket --bucket retainwise-terraform-state --region us-east-1
+
+# Create DynamoDB table for locks
+aws dynamodb create-table \
+  --table-name retainwise-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+
+# Import existing IAM roles
+terraform import aws_iam_role.backend_task_role prod-retainwise-backend-task-role
+terraform import aws_iam_role.worker_task_role prod-retainwise-worker-task-role
+terraform import aws_iam_role.cicd_ecs_deployment retainwise-cicd-ecs-deployment-role
+
+# Import S3 policies (currently inline, need to recreate as managed)
+# Note: Inline policies can't be imported directly
+```
+
+**Acceptance Criteria:**
+- ✅ Terraform state in S3
+- ✅ State locking enabled
+- ✅ All IAM roles/policies in Terraform state
+- ✅ `terraform plan` shows no changes (state = reality)
+
+---
+
+#### **Task 3.5.2: Fix CI/CD IAM Permissions (4 hours)**
+**Priority:** P0 - CRITICAL  
+**Status:** ⏳ Not Started  
+**Estimated:** 4 hours  
+
+**Objectives:**
+1. **Complete Permission Audit:**
+   - Review `infra/iam-cicd-restrictions.tf`
+   - Add all missing EC2 Describe permissions
+   - Add SQS read permissions (GetQueueUrl, GetQueueAttributes)
+   - Fix IAM PassRole for new task roles
+
+2. **Update Policy Correctly:**
+   ```hcl
+   # infra/iam-cicd-restrictions.tf
+   resource "aws_iam_policy" "cicd_ecs_deployment" {
+     name = "retainwise-cicd-ecs-deployment-restricted"
+     
+     policy = jsonencode({
+       Version = "2012-10-17"
+       Statement = [
+         # EC2 Describe (for Terraform data sources)
+         {
+           Sid    = "EC2Describe"
+           Effect = "Allow"
+           Action = [
+             "ec2:DescribeVpcs",
+             "ec2:DescribeSubnets",
+             "ec2:DescribeSecurityGroups",
+             "ec2:DescribeRouteTables",
+             "ec2:DescribeInternetGateways",
+             "ec2:DescribeNatGateways",
+             "ec2:DescribeVpcAttribute"  # CRITICAL: Was missing
+           ]
+           Resource = "*"
+         },
+         # SQS Read (for queue URL lookup)
+         {
+           Sid    = "SQSRead"
+           Effect = "Allow"
+           Action = [
+             "sqs:GetQueueUrl",
+             "sqs:GetQueueAttributes"
+           ]
+           Resource = "arn:aws:sqs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*retainwise*"
+         },
+         # IAM PassRole (for ECS task roles)
+         {
+           Sid    = "PassRole"
+           Effect = "Allow"
+           Action = "iam:PassRole"
+           Resource = [
+             "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/prod-retainwise-backend-task-role",
+             "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/prod-retainwise-worker-task-role",
+             "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/retainwise-ecs-task-execution-role"
+           ]
+           Condition = {
+             StringEquals = {
+               "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+             }
+           }
+         }
+         # ... rest of permissions
+       ]
+     })
+   }
+   ```
+
+3. **Migrate Inline Policies to Managed:**
+   - Remove inline S3 policies from IAM roles (created manually)
+   - Recreate as managed policies in `infra/iam-sqs-roles.tf`
+   - Ensure Terraform manages everything
+
+**Acceptance Criteria:**
+- ✅ CI/CD role has all required permissions
+- ✅ No inline policies (everything in Terraform)
+- ✅ `terraform plan` succeeds in GitHub Actions
+- ✅ `terraform apply` succeeds in GitHub Actions
+
+---
+
+#### **Task 3.5.3: Re-enable Terraform in GitHub Actions (2 hours)**
+**Priority:** P0 - CRITICAL  
+**Status:** ⏳ Not Started  
+**Estimated:** 2 hours  
+
+**Objectives:**
+1. **Add Terraform Steps Back:**
+   ```yaml
+   # .github/workflows/backend-ci-cd.yml
+   - name: Setup Terraform
+     uses: hashicorp/setup-terraform@v2
+     with:
+       terraform_version: 1.5.0
+   
+   - name: Terraform Init
+     run: |
+       cd infra
+       terraform init
+   
+   - name: Terraform Plan
+     run: |
+       cd infra
+       terraform plan -out=tfplan
+   
+   - name: Terraform Apply
+     if: github.ref == 'refs/heads/main'
+     run: |
+       cd infra
+       terraform apply -auto-approve tfplan
+   ```
+
+2. **Proper Sequencing:**
+   - Terraform runs BEFORE Docker build
+   - Migration runs AFTER ECS deployment
+   - Maintain idempotency (safe to re-run)
+
+**Acceptance Criteria:**
+- ✅ Terraform steps re-enabled in workflow
+- ✅ Deployment succeeds end-to-end
+- ✅ Infrastructure changes applied automatically
+
+---
+
+### **Week 5: Validation & Documentation (8 hours)**
+
+#### **Task 3.5.4: End-to-End Terraform Test (4 hours)**
+**Priority:** P1 - HIGH  
+**Status:** ⏳ Not Started  
+**Estimated:** 4 hours  
+
+**Test Scenarios:**
+1. **Infrastructure Change:**
+   - Modify ECS task memory (512 → 1024 MB)
+   - Commit + push
+   - Verify Terraform applies change
+   - Verify new task definition deployed
+
+2. **IAM Policy Change:**
+   - Add new SQS permission
+   - Commit + push
+   - Verify policy updated
+   - Verify no service disruption
+
+3. **Rollback Test:**
+   - Revert memory change (1024 → 512 MB)
+   - Verify rollback succeeds
+
+**Acceptance Criteria:**
+- ✅ All test scenarios pass
+- ✅ No manual intervention needed
+- ✅ Zero downtime during changes
+
+---
+
+#### **Task 3.5.5: Infrastructure Documentation (4 hours)**
+**Priority:** P1 - HIGH  
+**Status:** ⏳ Not Started  
+**Estimated:** 4 hours  
+
+**Deliverables:**
+1. **INFRASTRUCTURE.md:**
+   - Terraform structure overview
+   - How to make infrastructure changes
+   - Troubleshooting guide
+   - State management procedures
+
+2. **RUNBOOK.md:**
+   - Common operational tasks
+   - Emergency procedures
+   - Rollback procedures
+   - Contact information
+
+3. **ADR (Architecture Decision Records):**
+   - Document Option 1 vs Option 2 decision
+   - Rationale for Terraform state approach
+   - IAM role design decisions
+
+**Acceptance Criteria:**
+- ✅ Documentation complete and reviewed
+- ✅ Team can follow docs without assistance
+- ✅ All decisions recorded
+
+---
+
+**Phase 3.5 Total:** 20 hours  
+**Phase 3.5 Deliverable:** ✅ Full Terraform management with proper state  
+**Phase 3.5 Blocker Removed:** Ready for Phase 4 (visualizations)
+
+---
+
 ## **📊 PHASE 4: BASIC VISUALIZATIONS (MVP LAUNCH)**
 
-**Timeline:** Week 5-7 (80 hours)  
+**Timeline:** Week 6-8 (80 hours)  
 **Goal:** Launch-ready dashboard with visual insights  
 **Deliverable:** Interactive dashboard for Professional tier ($149/mo)
 

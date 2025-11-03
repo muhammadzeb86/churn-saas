@@ -1,7 +1,7 @@
 """Add SQS metadata columns to predictions table
 
 Revision ID: add_sqs_metadata
-Revises: add_predictions_table
+Revises: add_user_fk_constraint
 Create Date: 2025-11-02 12:00:00.000000
 
 Task 1.1: SQS Queue Configuration
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_sqs_metadata'
-down_revision = 'add_predictions_001'  # Points to actual revision ID
+down_revision = 'add_user_fk_constraint'  # Correctly points to the latest migration
 branch_labels = None
 depends_on = None
 
