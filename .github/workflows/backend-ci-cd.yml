@@ -320,9 +320,12 @@ jobs:
         
         echo "Migration task started: $MIGRATION_TASK_ARN"
         
-        # Wait for migration task to complete
+        # Wait for migration task to complete (with timeout)
         echo "Waiting for migration task to complete..."
-        while true; do
+        MAX_WAIT=600  # 10 minutes timeout
+        ELAPSED=0
+        
+        while [ $ELAPSED -lt $MAX_WAIT ]; do
           TASK_STATUS=$(aws ecs describe-tasks \
             --cluster $ECS_CLUSTER \
             --tasks $MIGRATION_TASK_ARN \
@@ -330,7 +333,7 @@ jobs:
             --output text \
             --region $AWS_REGION)
           
-          echo "Migration task status: $TASK_STATUS"
+          echo "Migration task status: $TASK_STATUS (elapsed: ${ELAPSED}s)"
           
           if [ "$TASK_STATUS" = "STOPPED" ]; then
             # Check if task succeeded
@@ -342,20 +345,57 @@ jobs:
               --region $AWS_REGION)
             
             if [ "$TASK_EXIT_CODE" = "0" ]; then
-              echo "Migration completed successfully!"
+              echo "✅ Migration completed successfully!"
               break
             else
-              echo "Migration failed with exit code: $TASK_EXIT_CODE"
+              echo "❌ Migration failed with exit code: $TASK_EXIT_CODE"
+              
+              # Get detailed failure reason
+              STOP_REASON=$(aws ecs describe-tasks \
+                --cluster $ECS_CLUSTER \
+                --tasks $MIGRATION_TASK_ARN \
+                --query 'tasks[0].stoppedReason' \
+                --output text \
+                --region $AWS_REGION)
+              
+              echo "Stop reason: $STOP_REASON"
+              
+              # Get container logs if available
+              echo "Fetching container logs..."
+              LOG_STREAM=$(aws ecs describe-tasks \
+                --cluster $ECS_CLUSTER \
+                --tasks $MIGRATION_TASK_ARN \
+                --query 'tasks[0].containers[0].name' \
+                --output text \
+                --region $AWS_REGION)
+              
               exit 1
             fi
           elif [ "$TASK_STATUS" = "RUNNING" ]; then
-            echo "Migration still running, waiting..."
+            echo "Migration task is running..."
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          elif [ "$TASK_STATUS" = "PROVISIONING" ] || [ "$TASK_STATUS" = "PENDING" ]; then
+            echo "Migration task is provisioning/pending..."
             sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          elif [ "$TASK_STATUS" = "DEPROVISIONING" ]; then
+            echo "Migration task is deprovisioning (completing)..."
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
           else
-            echo "Unexpected task status: $TASK_STATUS"
-            exit 1
+            echo "⚠️  Unexpected task status: $TASK_STATUS"
+            echo "Continuing to wait..."
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
           fi
         done
+        
+        # Check if we hit timeout
+        if [ $ELAPSED -ge $MAX_WAIT ]; then
+          echo "❌ Migration task timed out after ${MAX_WAIT} seconds"
+          exit 1
+        fi
         
     - name: Verify migration success
       if: steps.check-migrations.outputs.migrations_changed == 'true'
