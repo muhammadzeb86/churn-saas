@@ -173,9 +173,10 @@ jobs:
     
     - name: Terraform Format Check
       working-directory: ./infra
+      continue-on-error: true
       run: |
         echo "🔍 Checking Terraform formatting..."
-        terraform fmt -check || (echo "⚠️ Run 'terraform fmt' to fix formatting" && exit 0)
+        terraform fmt -check -recursive || echo "⚠️ Some files need formatting (non-blocking)"
     
     - name: Terraform Validate
       working-directory: ./infra
