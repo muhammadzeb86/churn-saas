@@ -228,8 +228,8 @@ class ChurnPredictor:
                 f.write(result['report'])
                 f.write("\n" + "=" * 40 + "\n")
         
-        # Save best model
-        model_path = self.dirs['models'] / f"best_churn_model_{self.timestamp}.pkl"
+        # Save best model (must match predict.py expectation)
+        model_path = self.dirs['models'] / f"best_retention_model_{self.timestamp}.pkl"
         with open(model_path, 'wb') as f:
             pickle.dump(best_model, f)
         
