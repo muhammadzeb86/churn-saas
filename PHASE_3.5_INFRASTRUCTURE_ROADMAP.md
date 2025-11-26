@@ -68,7 +68,44 @@ Lines 156-158 in `.github/workflows/backend-ci-cd.yml`:
 - State stored in: `s3://retainwise-terraform-state-prod/prod/terraform.tfstate`
 - Locking via DynamoDB: `retainwise-terraform-locks`
 
-**Status:** Ready to commit and test
+**Status:** ✅ Committed and pushed (commit `45c07a8`)
+
+**GitHub Actions Status:**
+- Workflow triggered automatically
+- Build 133 running: https://github.com/muhammadzeb86/churn-saas/actions
+- Waiting for Terraform init to complete...
+
+**What to Expect:**
+1. ✅ Workflow will checkout code
+2. ✅ Build and test backend
+3. ✅ Deploy to AWS
+4. 🔄 **Terraform init** (NEW - this will create state in S3)
+5. 🔄 **Terraform validate** (NEW)
+6. ⏭️ Terraform plan/apply (SKIP - no infra changes this commit, only workflow change)
+7. ✅ Continue with ECS deployment
+8. ✅ Run migrations
+9. ✅ Health check
+
+**Build #133 Result:** ❌ FAILED at Terraform Init
+
+**Issues Identified:**
+1. ❌ **S3 Access Denied:** Wrong bucket name in IAM policy
+   - Policy had: `retainwise-terraform-state-908226940571`
+   - Actual bucket: `retainwise-terraform-state-prod`
+2. ❌ **Duplicate Terraform Block:** Both `provider.tf` and `backend.tf` had full terraform blocks
+
+**Fixes Applied:**
+1. ✅ **Fixed backend.tf:** Removed duplicate `required_version` and `required_providers`
+2. ✅ **Updated IAM Policy v6:** 
+   - Corrected S3 bucket ARN to `retainwise-terraform-state-prod`
+   - Added DynamoDB permissions for state locking
+   - Added `DeleteObject` permission (for state cleanup)
+   - Added `DescribeTable` permission
+
+**Changes Staged:**
+- `infra/backend.tf` - Fixed duplicate terraform block
+
+**Next:** Commit and re-deploy to test Terraform init
 
 ---
 
