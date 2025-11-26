@@ -63,24 +63,15 @@ class Settings:
             logging.getLogger(__name__).warning("PREDICTIONS_QUEUE_URL not set - SQS functionality disabled")
     
     def get_boto3_sqs(self):
-        """Get configured boto3 SQS client with explicit endpoint"""
+        """Get configured boto3 SQS client"""
         try:
-            # Extract region from queue URL as fallback
-            queue_region = self.AWS_REGION
-            if self.PREDICTIONS_QUEUE_URL and "sqs." in self.PREDICTIONS_QUEUE_URL:
-                try:
-                    # Parse: https://sqs.REGION.amazonaws.com/...
-                    queue_region = self.PREDICTIONS_QUEUE_URL.split("sqs.")[1].split(".")[0]
-                except Exception:
-                    pass
+            # Let boto3 auto-configure endpoint based on region
+            # Do NOT specify endpoint_url - it causes "wsdl version" errors
+            logger.info(f"Creating SQS client for region: {self.AWS_REGION}")
             
-            logger.info(f"Creating SQS client for region: {queue_region}")
-            
-            # Create client with explicit configuration
             return boto3.client(
                 "sqs",
-                region_name=queue_region,
-                endpoint_url=f"https://sqs.{queue_region}.amazonaws.com"
+                region_name=self.AWS_REGION
             )
         except Exception as e:
             logger.error(f"Failed to create SQS client: {e}")
