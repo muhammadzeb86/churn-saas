@@ -23,7 +23,7 @@ class PredictionSQSMessage(BaseModel):
         {
             "prediction_id": "123e4567-e89b-12d3-a456-426614174000",
             "user_id": "user_2abcdef1234567890",
-            "upload_id": "987fcdeb-51a2-43f1-b123-456789abcdef",
+            "upload_id": "15",
             "s3_file_path": "s3://retainwise-uploads/user_abc/file.csv",
             "timestamp": "2025-11-02T12:34:56.789Z",
             "priority": "normal"
@@ -42,9 +42,9 @@ class PredictionSQSMessage(BaseModel):
         description="Clerk user ID (format: user_xxxx)"
     )
     
-    upload_id: UUID4 = Field(
+    upload_id: str = Field(
         ...,
-        description="UUID of the upload record in database"
+        description="ID of the upload record in database (integer as string)"
     )
     
     s3_file_path: str = Field(
@@ -135,7 +135,7 @@ class PredictionSQSMessage(BaseModel):
             "example": {
                 "prediction_id": "123e4567-e89b-12d3-a456-426614174000",
                 "user_id": "user_2abcdef1234567890abcdef",
-                "upload_id": "987fcdeb-51a2-43f1-b123-456789abcdef",
+                "upload_id": "123",  # Integer ID as string
                 "s3_file_path": "s3://retainwise-uploads/user_abc123/sample.csv",
                 "timestamp": "2025-11-02T12:34:56.789Z",
                 "priority": "normal"

@@ -22,7 +22,7 @@ async def publish_prediction_task(
     Args:
         queue_url: SQS queue URL
         prediction_id: UUID of the prediction record
-        upload_id: ID of the upload record
+        upload_id: UUID of the upload record
         user_id: ID of the user
         s3_key: S3 object key for the uploaded file
         
@@ -35,14 +35,17 @@ async def publish_prediction_task(
     try:
         sqs_client = settings.get_boto3_sqs()
         
-        # Create message body
+        # Convert S3 key to full S3 path for Pydantic validation
+        s3_file_path = f"s3://{settings.S3_BUCKET}/{s3_key}"
+        
+        # Create message body matching PredictionSQSMessage schema
         message_body = {
             "prediction_id": prediction_id,
-            "upload_id": upload_id,
+            "upload_id": upload_id,  # Must be UUID string
             "user_id": user_id,
-            "s3_key": s3_key,
-            "task_type": "ml_prediction",
-            "timestamp": datetime.datetime.utcnow().isoformat()
+            "s3_file_path": s3_file_path,  # Changed from s3_key
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "priority": "normal"
         }
         
         # Send message to SQS
