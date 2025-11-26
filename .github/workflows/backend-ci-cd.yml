@@ -152,11 +152,88 @@ jobs:
           .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        
-    # OPTION 1: Manual deployment (Terraform deferred to Phase 4)
-    # Terraform steps temporarily disabled - infrastructure managed manually
-    # Will be re-enabled in Phase 4 with proper state management
     
+    # ========================================
+    # TERRAFORM INFRASTRUCTURE MANAGEMENT
+    # ========================================
+    # Phase 3.5: Terraform state management enabled
+    # State stored in S3 with DynamoDB locking
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.6.0
+    
+    - name: Terraform Init
+      working-directory: ./infra
+      run: |
+        echo "🔧 Initializing Terraform with S3 backend..."
+        terraform init -reconfigure
+        echo "✅ Terraform initialized successfully"
+    
+    - name: Terraform Format Check
+      working-directory: ./infra
+      run: |
+        echo "🔍 Checking Terraform formatting..."
+        terraform fmt -check || (echo "⚠️ Run 'terraform fmt' to fix formatting" && exit 0)
+    
+    - name: Terraform Validate
+      working-directory: ./infra
+      run: |
+        echo "🔍 Validating Terraform configuration..."
+        terraform validate
+        echo "✅ Terraform configuration is valid"
+    
+    - name: Check for infrastructure changes
+      id: infra-changes
+      run: |
+        # Check if infra directory has changes in this commit
+        INFRA_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^infra/' || echo "")
+        if [ -n "$INFRA_CHANGED" ]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "✅ Infrastructure changes detected"
+          echo "$INFRA_CHANGED"
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "ℹ️ No infrastructure changes detected"
+        fi
+    
+    - name: Terraform Plan
+      if: steps.infra-changes.outputs.changes == 'true'
+      working-directory: ./infra
+      run: |
+        echo "📋 Planning Terraform changes..."
+        terraform plan -out=tfplan -input=false
+        terraform show -no-color tfplan > plan.txt
+        echo "✅ Terraform plan completed"
+    
+    - name: Show Terraform Plan
+      if: steps.infra-changes.outputs.changes == 'true'
+      working-directory: ./infra
+      run: |
+        echo "=== TERRAFORM PLAN ==="
+        cat plan.txt
+        echo "======================"
+    
+    - name: Terraform Apply
+      if: steps.infra-changes.outputs.changes == 'true'
+      working-directory: ./infra
+      run: |
+        echo "🚀 Applying Terraform changes..."
+        terraform apply -auto-approve tfplan
+        echo "✅ Terraform apply completed successfully"
+    
+    - name: Verify Terraform State
+      working-directory: ./infra
+      run: |
+        echo "🔍 Verifying Terraform state..."
+        terraform state list || echo "No resources in state yet (expected for first run)"
+        echo "✅ Terraform state verification complete"
+        
+    # ========================================
+    # ECS DEPLOYMENT (Manual - Will migrate to Terraform)
+    # ========================================
+        
     - name: Get SQS queue URL from AWS
       id: get-queue-url
       run: |
