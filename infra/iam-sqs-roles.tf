@@ -20,11 +20,6 @@ resource "aws_iam_role" "backend_task_role" {
           Service = "ecs-tasks.amazonaws.com"
         }
         Action = "sts:AssumeRole"
-        Condition = {
-          StringEquals = {
-            "sts:ExternalId" = "${var.environment}-backend"
-          }
-        }
       }
     ]
   })
@@ -52,11 +47,6 @@ resource "aws_iam_role" "worker_task_role" {
           Service = "ecs-tasks.amazonaws.com"
         }
         Action = "sts:AssumeRole"
-        Condition = {
-          StringEquals = {
-            "sts:ExternalId" = "${var.environment}-worker"
-          }
-        }
       }
     ]
   })
