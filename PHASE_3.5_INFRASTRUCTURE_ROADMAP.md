@@ -1,8 +1,8 @@
 # 🏗️ Phase 3.5: Infrastructure Hardening - Complete Roadmap
 
 **Date Created:** November 26, 2025  
-**Last Updated:** November 26, 2025 - Stage 1 In Progress  
-**Status:** STAGE 1 - AWS RESOURCES COMPLETE ✅  
+**Last Updated:** November 27, 2025 - Stage 2 COMPLETE  
+**Status:** STAGE 1 & 2 COMPLETE ✅ - ALL INFRASTRUCTURE UNDER TERRAFORM CONTROL  
 **Priority:** HIGH - Foundation for all future development
 
 ---
@@ -152,6 +152,107 @@ Lines 156-158 in `.github/workflows/backend-ci-cd.yml`:
 - All Terraform infrastructure ready
 - Workflow tested and working
 - Ready for Stage 2 (import existing resources)
+
+---
+
+## 🔄 **STAGE 2: IMPORT EXISTING RESOURCES** ✅ COMPLETE
+
+**Start Time:** November 26, 2025  
+**Completion Time:** November 27, 2025  
+**Status:** ✅ COMPLETE  
+**Objective:** Import all manually-created AWS resources into Terraform state
+
+### **🎉 STAGE 2 COMPLETION SUMMARY**
+
+**What Was Accomplished:**
+
+1. **✅ Terraform CLI Installed**
+   - Installed Terraform v1.14.0 via winget
+   - Configured PATH environment variable
+   - Verified installation successful
+
+2. **✅ Terraform State Migrated**
+   - Local state file existed with ALL resources already imported
+   - Successfully migrated local state to S3 backend
+   - State now stored at: `s3://retainwise-terraform-state-prod/prod/terraform.tfstate`
+
+3. **✅ Critical Fixes Applied**
+   - **SQS VPC Conditions Removed:** Fixed IAM policies to work without SQS VPC endpoint
+   - **CI/CD Terraform Access Added:** Added S3 and DynamoDB permissions for state management
+   - Files modified:
+     - `infra/iam-sqs-roles.tf` - Removed aws:SourceVpc conditions (lines 92-96, 133-137)
+     - `infra/iam-cicd-restrictions.tf` - Added Terraform state access statements
+
+4. **✅ Terraform Apply Successful**
+   - 5 resources added (S3 policy + attachments)
+   - 2 resources changed (CI/CD policy, golden TD)
+   - 2 resources replaced (task definitions)
+   - **Result:** Apply complete! Resources: 5 added, 2 changed, 2 destroyed
+
+5. **✅ Final Verification - PERFECT SYNC**
+   - Ran `terraform plan -detailed-exitcode`
+   - **Exit code: 0** (No changes needed)
+   - **Message:** "No changes. Your infrastructure matches the configuration."
+   - **ALL 100+ resources** now under Terraform control
+
+**Resources Now Managed by Terraform:**
+- 10 IAM Roles
+- 12 IAM Policies  
+- 62 IAM Role Policy Attachments
+- 2 SQS Queues + 2 Queue Policies
+- 1 S3 Bucket (uploads) + access controls
+- 2 ECS Task Definitions (backend + worker)
+- 2 ECS Services
+- 1 RDS Instance
+- 1 Application Load Balancer + listeners + target groups
+- 3 Security Groups
+- 10 Route53 Records + 1 Hosted Zone
+- 1 ACM Certificate + validation
+- 1 WAF Web ACL
+- 2 Lambda Functions (scaling + guardrails)
+- 8 CloudWatch Alarms + 3 EventBridge Rules
+- 1 ECR Repository
+- Multiple CloudWatch Log Groups
+- And more...
+
+**State File Stats:**
+- Location: S3 (`retainwise-terraform-state-prod`)
+- Total Resources: 100+
+- State Lock: DynamoDB (`retainwise-terraform-locks`)
+- Status: ✅ Healthy and in sync
+
+**Stage 2 Status:** ✅ **COMPLETE - 100% SUCCESS**
+
+---
+
+### **Phase 2.1: Resource Audit (In Progress)**
+
+**Step 1: Identifying Resources to Import** ✅ COMPLETE
+
+**Resources Discovered:**
+- ✅ IAM Roles: 7 (all have Terraform definitions)
+- ✅ IAM Policies: 9 (all have Terraform definitions)  
+- ✅ SQS Queues: 2 (both have Terraform definitions)
+- ✅ S3 Buckets: 2 (1 needs import, 1 is state bucket)
+
+**Critical Discovery:**
+⚠️ **ALL resources already have Terraform definitions in `infra/*.tf` files!**
+⚠️ **But Terraform state is EMPTY (0 resources)**
+⚠️ **This creates a mismatch: AWS has resources, Terraform thinks they don't exist**
+
+**Import Plan Created:** See `STAGE_2_IMPORT_PLAN.md`
+
+**Blocker Identified:** Terraform not installed locally
+- Cannot run `terraform import` commands
+- State file stored remotely in S3
+- Need Terraform CLI to import resources
+
+**Options:**
+1. Install Terraform locally → Import → Push state to S3
+2. Create GitHub Actions workflow for imports
+3. Document gap, handle in production deployment
+
+**Decision Point:** How to proceed with imports?
 
 ---
 

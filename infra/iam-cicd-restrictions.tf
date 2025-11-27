@@ -122,6 +122,32 @@ resource "aws_iam_policy" "cicd_ecs_deployment" {
             "aws:RequestedRegion" = var.aws_region
           }
         }
+      },
+      {
+        Sid = "TerraformStateS3Access"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketVersioning"
+        ]
+        Resource = [
+          "arn:aws:s3:::retainwise-terraform-state-prod",
+          "arn:aws:s3:::retainwise-terraform-state-prod/*"
+        ]
+      },
+      {
+        Sid = "TerraformStateLocking"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:DescribeTable"
+        ]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/retainwise-terraform-locks"
       }
     ]
   })

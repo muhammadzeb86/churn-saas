@@ -89,11 +89,6 @@ resource "aws_iam_policy" "sqs_send_policy" {
           "sqs:GetQueueUrl"
         ]
         Resource = [aws_sqs_queue.predictions_queue.arn]
-        Condition = {
-          StringEquals = {
-            "aws:SourceVpc" = var.vpc_id
-          }
-        }
       }
     ]
   })
@@ -130,11 +125,6 @@ resource "aws_iam_policy" "sqs_worker_policy" {
           aws_sqs_queue.predictions_queue.arn,
           aws_sqs_queue.predictions_dlq.arn
         ]
-        Condition = {
-          StringEquals = {
-            "aws:SourceVpc" = var.vpc_id
-          }
-        }
       }
     ]
   })
