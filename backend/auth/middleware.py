@@ -51,8 +51,16 @@ def validate_auth_configuration():
     
     This function checks that all required environment variables are set
     for production authentication.
+    
+    Note: Only validates in production mode. Test/dev environments are skipped.
     """
-    if not AUTH_DEV_MODE and not os.getenv("CLERK_FRONTEND_API"):
+    # Skip validation in test/dev environments
+    if AUTH_DEV_MODE or os.getenv("ENVIRONMENT") in ["test", "development"]:
+        logger.info("⚠️ Dev/test mode - skipping CLERK_FRONTEND_API validation")
+        return
+    
+    # Production mode: require CLERK_FRONTEND_API
+    if not os.getenv("CLERK_FRONTEND_API"):
         logger.error(
             "❌ CONFIGURATION ERROR:\n"
             "   Production mode but CLERK_FRONTEND_API not set!\n"
