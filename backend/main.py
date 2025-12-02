@@ -23,7 +23,7 @@ from backend.middleware.error_handler import setup_error_handlers, error_handler
 from backend.monitoring.metrics import monitoring_middleware
 
 # Import API routes
-from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list, predictions, version
+from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list, predictions, version, auth_metrics
 from backend.monitoring.health import router as monitoring_router
 
 # Configure logging
@@ -147,6 +147,7 @@ app.include_router(uploads_list.router, prefix="/api", tags=["uploads"])
 app.include_router(predictions.router, prefix="/api/predictions", tags=["predictions"])
 app.include_router(waitlist.router, prefix="/api", tags=["waitlist"])
 app.include_router(clerk.router, prefix="/api", tags=["auth"])
+app.include_router(auth_metrics.router, prefix="/api", tags=["auth"])
 app.include_router(version.router, tags=["version"])
 app.include_router(monitoring_router, prefix="/monitoring", tags=["monitoring"])
 

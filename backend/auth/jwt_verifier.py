@@ -28,6 +28,100 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# ========================================================================
+# MONITORING METRICS
+# ========================================================================
+
+class JWTMetrics:
+    """
+    In-memory metrics collector for JWT verification
+    
+    These metrics can be exported to CloudWatch, Prometheus, or other
+    monitoring systems for production observability.
+    """
+    def __init__(self):
+        self.verification_success_count = 0
+        self.verification_failure_count = 0
+        self.jwks_fetch_count = 0
+        self.jwks_cache_hit_count = 0
+        self.jwks_stale_cache_use_count = 0
+        self.last_reset_time = time.time()
+    
+    def record_verification_success(self):
+        """Increment successful verification counter"""
+        self.verification_success_count += 1
+        logger.debug(f"[METRIC] JWT verifications succeeded: {self.verification_success_count}")
+    
+    def record_verification_failure(self, reason: str):
+        """Increment failed verification counter"""
+        self.verification_failure_count += 1
+        logger.warning(f"[METRIC] JWT verification failed ({reason}). Total failures: {self.verification_failure_count}")
+    
+    def record_jwks_fetch(self):
+        """Increment JWKS fetch counter"""
+        self.jwks_fetch_count += 1
+        logger.info(f"[METRIC] JWKS fetched from Clerk. Total fetches: {self.jwks_fetch_count}")
+    
+    def record_jwks_cache_hit(self):
+        """Increment JWKS cache hit counter"""
+        self.jwks_cache_hit_count += 1
+        logger.debug(f"[METRIC] JWKS cache hit. Total hits: {self.jwks_cache_hit_count}")
+    
+    def record_jwks_stale_cache_use(self):
+        """Increment stale cache usage counter"""
+        self.jwks_stale_cache_use_count += 1
+        logger.warning(f"[METRIC] Used stale JWKS cache. Total: {self.jwks_stale_cache_use_count}")
+    
+    def get_stats(self) -> Dict:
+        """
+        Get current metrics as dictionary
+        
+        Returns:
+            dict: Current metric values
+        """
+        uptime = time.time() - self.last_reset_time
+        return {
+            "verification_success_count": self.verification_success_count,
+            "verification_failure_count": self.verification_failure_count,
+            "verification_success_rate": (
+                self.verification_success_count / 
+                max(1, self.verification_success_count + self.verification_failure_count)
+            ),
+            "jwks_fetch_count": self.jwks_fetch_count,
+            "jwks_cache_hit_count": self.jwks_cache_hit_count,
+            "jwks_cache_hit_rate": (
+                self.jwks_cache_hit_count /
+                max(1, self.jwks_cache_hit_count + self.jwks_fetch_count)
+            ),
+            "jwks_stale_cache_use_count": self.jwks_stale_cache_use_count,
+            "uptime_seconds": uptime
+        }
+    
+    def reset(self):
+        """Reset all counters (useful for testing)"""
+        self.verification_success_count = 0
+        self.verification_failure_count = 0
+        self.jwks_fetch_count = 0
+        self.jwks_cache_hit_count = 0
+        self.jwks_stale_cache_use_count = 0
+        self.last_reset_time = time.time()
+        logger.info("[METRIC] All JWT metrics reset")
+
+
+# Global metrics instance
+_metrics = JWTMetrics()
+
+
+def get_jwt_metrics() -> JWTMetrics:
+    """
+    Get global JWT metrics instance
+    
+    Returns:
+        JWTMetrics: Singleton metrics instance
+    """
+    return _metrics
+
+
 class JWTVerificationError(Exception):
     """Custom exception for JWT verification failures"""
     pass
@@ -143,6 +237,7 @@ class ProductionJWTVerifier:
         # Fast path: return cached JWKS if still valid
         if (self.jwks_cache and 
             (current_time - self.jwks_last_fetched) < self.cache_ttl):
+            _metrics.record_jwks_cache_hit()
             return self.jwks_cache
         
         # Slow path: fetch fresh JWKS with locking
@@ -180,6 +275,7 @@ class ProductionJWTVerifier:
                     self.jwks_cache = jwks_data
                     self.jwks_last_fetched = current_time
                     
+                    _metrics.record_jwks_fetch()
                     logger.info(
                         f"✅ Successfully fetched JWKS with "
                         f"{len(jwks_data['keys'])} keys"
@@ -200,6 +296,7 @@ class ProductionJWTVerifier:
             # Graceful degradation: use stale cache if available
             if self.jwks_cache:
                 cache_age = current_time - self.jwks_last_fetched
+                _metrics.record_jwks_stale_cache_use()
                 logger.warning(
                     f"⚠️ Using stale JWKS cache (age: {cache_age:.0f} seconds) "
                     f"due to fetch failure"
@@ -321,28 +418,33 @@ class ProductionJWTVerifier:
                     "Token payload missing 'sub' (subject/user ID) claim"
                 )
             
+            _metrics.record_verification_success()
             logger.info(
                 f"✅ JWT signature verified successfully for user: {payload.get('sub')}"
             )
             return payload
             
         except ExpiredSignatureError:
+            _metrics.record_verification_failure("expired")
             logger.warning("Token verification failed: Token has expired")
             raise JWTVerificationError("Token has expired. Please log in again.")
             
         except JWTClaimsError as e:
+            _metrics.record_verification_failure("invalid_claims")
             logger.warning(f"Token verification failed: Invalid claims - {str(e)}")
             raise JWTVerificationError(f"Token claims invalid: {str(e)}")
             
         except JWTError as e:
+            _metrics.record_verification_failure("jwt_error")
             logger.warning(f"Token verification failed: {str(e)}")
             raise JWTVerificationError(f"Token verification failed: {str(e)}")
             
         except JWTVerificationError:
-            # Re-raise our custom exceptions as-is
+            # Re-raise our custom exceptions as-is (already counted)
             raise
             
         except Exception as e:
+            _metrics.record_verification_failure("unexpected")
             logger.error(
                 f"❌ Unexpected error during token verification: {str(e)}",
                 exc_info=True

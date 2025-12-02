@@ -25,11 +25,8 @@ security = HTTPBearer(
 # Configuration from environment
 AUTH_DEV_MODE = os.getenv("AUTH_DEV_MODE", "false").lower() in ["true", "1", "yes"]
 
-# ✅ FEATURE FLAG for phased rollout (safe deployment strategy)
-JWT_SIGNATURE_VERIFICATION_ENABLED = os.getenv(
-    "JWT_SIGNATURE_VERIFICATION_ENABLED",
-    "false"  # Default to FALSE initially for safe rollout
-).lower() in ["true", "1", "yes"]
+# JWT signature verification is now ALWAYS ENABLED in production
+# No feature flag needed - production security is mandatory
 
 # Log authentication mode on startup
 if AUTH_DEV_MODE:
@@ -39,47 +36,30 @@ if AUTH_DEV_MODE:
         "   Set AUTH_DEV_MODE=false in production."
     )
 else:
-    if JWT_SIGNATURE_VERIFICATION_ENABLED:
-        logger.info(
-            "✅ Production authentication mode ACTIVE:\n"
-            "   - JWT signature verification: ENABLED\n"
-            "   - JWKS validation: ENABLED\n"
-            "   - Security: MAXIMUM"
-        )
-    else:
-        logger.warning(
-            "⚠️  Production mode but signature verification is DISABLED:\n"
-            "   - JWT_SIGNATURE_VERIFICATION_ENABLED=false\n"
-            "   - Using fallback authentication (structure check only)\n"
-            "   - Set JWT_SIGNATURE_VERIFICATION_ENABLED=true to enable full security"
-        )
+    logger.info(
+        "✅ Production authentication mode ACTIVE:\n"
+        "   - JWT signature verification: ENABLED\n"
+        "   - JWKS validation: ENABLED\n"
+        "   - Security: MAXIMUM"
+    )
 
 
-# ✅ STARTUP VALIDATION (from Chat DeepSeek)
+# ✅ STARTUP VALIDATION
 def validate_auth_configuration():
     """
     Validate authentication configuration on startup
     
     This function checks that all required environment variables are set
-    and logs warnings for potentially insecure configurations.
+    for production authentication.
     """
-    if not AUTH_DEV_MODE and not JWT_SIGNATURE_VERIFICATION_ENABLED:
-        logger.warning(
-            "⚠️  SECURITY WARNING: Production mode without signature verification!\n"
-            "   Current configuration:\n"
-            "   - AUTH_DEV_MODE=false\n"
-            "   - JWT_SIGNATURE_VERIFICATION_ENABLED=false\n"
-            "   This means tokens are only structure-checked, NOT cryptographically verified.\n"
-            "   Set JWT_SIGNATURE_VERIFICATION_ENABLED=true to enable full security."
-        )
-    
-    if JWT_SIGNATURE_VERIFICATION_ENABLED and not os.getenv("CLERK_FRONTEND_API"):
+    if not AUTH_DEV_MODE and not os.getenv("CLERK_FRONTEND_API"):
         logger.error(
             "❌ CONFIGURATION ERROR:\n"
-            "   JWT_SIGNATURE_VERIFICATION_ENABLED=true but CLERK_FRONTEND_API not set!\n"
-            "   Production authentication will FAIL.\n"
-            "   Set CLERK_FRONTEND_API to your Clerk domain."
+            "   Production mode but CLERK_FRONTEND_API not set!\n"
+            "   JWT signature verification requires this variable.\n"
+            "   Set CLERK_FRONTEND_API to your Clerk domain (e.g., clerk.yourapp.com)"
         )
+        raise ValueError("CLERK_FRONTEND_API required in production mode")
 
 
 # Run validation on module import
@@ -92,10 +72,9 @@ async def get_current_user(
     """
     FastAPI dependency for JWT authentication
     
-    This function implements a three-tier authentication strategy:
-    1. Development mode: Structure validation only (AUTH_DEV_MODE=true)
-    2. Production with feature flag: Full signature verification (JWT_SIGNATURE_VERIFICATION_ENABLED=true)
-    3. Production fallback: Structure validation (JWT_SIGNATURE_VERIFICATION_ENABLED=false)
+    This function implements a two-tier authentication strategy:
+    1. Development mode: Structure validation only (AUTH_DEV_MODE=true) - LOCAL ONLY
+    2. Production mode: Full signature verification (ALWAYS ENABLED)
     
     Args:
         credentials: HTTP Authorization header with Bearer token
@@ -110,6 +89,7 @@ async def get_current_user(
             - last_name: Last name
             - picture: Avatar URL
             - dev_mode: Boolean indicating if dev mode was used
+            - signature_verified: Boolean indicating if signature was verified
             - raw_payload: Complete JWT payload
         
     Raises:
@@ -124,16 +104,12 @@ async def get_current_user(
     
     token = credentials.credentials
     
-    # === TIER 1: DEVELOPMENT MODE ===
+    # === TIER 1: DEVELOPMENT MODE (local development only) ===
     if AUTH_DEV_MODE:
         return await _authenticate_dev_mode(token)
     
-    # === TIER 2: PRODUCTION WITH SIGNATURE VERIFICATION ===
-    if JWT_SIGNATURE_VERIFICATION_ENABLED:
-        return await _authenticate_production_verified(token)
-    
-    # === TIER 3: PRODUCTION FALLBACK (structure check only) ===
-    return await _authenticate_production_fallback(token)
+    # === TIER 2: PRODUCTION (always use signature verification) ===
+    return await _authenticate_production_verified(token)
 
 
 async def _authenticate_dev_mode(token: str) -> Dict:
@@ -245,55 +221,10 @@ async def _authenticate_production_verified(token: str) -> Dict:
         )
 
 
-async def _authenticate_production_fallback(token: str) -> Dict:
-    """
-    Production fallback authentication - structure validation only
-    
-    WARNING: This is a FALLBACK mode for safe rollout.
-    Does NOT verify JWT signature!
-    Should only be used temporarily during deployment.
-    """
-    try:
-        import jwt as pyjwt
-        
-        payload = pyjwt.decode(
-            token,
-            options={"verify_signature": False}
-        )
-        
-        user_id = payload.get('sub')
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token missing user ID (sub claim)"
-            )
-        
-        logger.warning(
-            f"⚠️ FALLBACK: Authenticated user {user_id} via structure check only. "
-            f"Signature NOT verified! Enable JWT_SIGNATURE_VERIFICATION_ENABLED=true"
-        )
-        
-        return {
-            "id": user_id,
-            "email": payload.get('email', ''),
-            "email_verified": payload.get('email_verified', False),
-            "name": payload.get('name', ''),
-            "first_name": payload.get('given_name', ''),
-            "last_name": payload.get('family_name', ''),
-            "picture": payload.get('picture', ''),
-            "dev_mode": False,
-            "signature_verified": False,  # ⚠️ NOT VERIFIED
-            "raw_payload": payload
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Fallback authentication failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}"
-        )
+# REMOVED: Unsafe fallback function
+# Previously allowed authentication without signature verification
+# This was a security risk and has been eliminated
+# Production authentication now ALWAYS verifies JWT signatures
 
 
 async def get_optional_user(
@@ -398,12 +329,7 @@ async def startup_auth_check():
         logger.warning("⚠️ AUTH_DEV_MODE enabled - skipping production checks")
         return
     
-    if not JWT_SIGNATURE_VERIFICATION_ENABLED:
-        logger.warning(
-            "⚠️ JWT signature verification disabled - skipping verifier checks"
-        )
-        return
-    
+    # In production, always run full verification checks
     try:
         # Test 1: Import JWT verifier
         from .jwt_verifier import get_jwt_verifier
@@ -418,7 +344,7 @@ async def startup_auth_check():
         num_keys = len(jwks.get('keys', []))
         logger.info(f"✅ JWKS fetched successfully: {num_keys} keys available")
         
-        logger.info("✅ Authentication system self-test PASSED")
+        logger.info("✅ Authentication system self-test PASSED - Production security enabled")
         
     except Exception as e:
         logger.error(
@@ -426,3 +352,5 @@ async def startup_auth_check():
             f"   Production authentication may not work correctly!",
             exc_info=True
         )
+        # In production, this is a critical error
+        raise
