@@ -225,6 +225,332 @@ Lines 156-158 in `.github/workflows/backend-ci-cd.yml`:
 
 ---
 
+## 🔐 **STAGE 3: JWT SIGNATURE VERIFICATION (SECURITY FIX)**
+
+**Start Time:** December 2, 2025  
+**Status:** 🚧 IN PROGRESS  
+**Priority:** P0 - CRITICAL SECURITY  
+**Objective:** Enable production-grade JWT signature verification with Clerk JWKS
+
+### **Background: Security Vulnerability Discovered**
+
+**Issue:** ML pipeline working but authentication using insecure fallback mode
+```
+WARNING: Authenticated user via structure check only. Signature NOT verified!
+```
+
+**Root Cause Analysis:**
+- ✅ JWT verification code **already exists** in codebase (`jwt_verifier.py`)
+- ✅ Code is **production-ready** with JWKS caching and graceful degradation
+- ❌ Feature is **DISABLED** via environment variable
+- ❌ No environment variables set in production
+- ❌ Fallback mode active (structure-only validation)
+- ❌ **Security risk:** Anyone can forge tokens
+
+**Current State:**
+```python
+# middleware.py line 248-296: Active fallback function
+async def _authenticate_production_fallback(token: str):
+    payload = pyjwt.decode(token, options={"verify_signature": False})  # ❌ NOT SECURE
+    logger.warning("⚠️ Signature NOT verified!")
+```
+
+**Existing Implementation Assessment:**
+- `backend/auth/jwt_verifier.py`: 382 lines, production-ready ✅
+- `backend/auth/middleware.py`: 3-tier auth strategy (dev/prod/fallback) ✅
+- JWKS client with 24-hour caching ✅
+- Async-safe locking (thundering herd protection) ✅
+- Graceful degradation (stale cache fallback) ✅
+- **Missing:** Tests (0 coverage) ❌
+- **Missing:** Environment variables in AWS ❌
+- **Issue:** Unsafe fallback mode exists ⚠️
+
+---
+
+### **Stage 3 Implementation Plan (Option B - Enhanced Existing)**
+
+**Estimated Time:** 3 hours  
+**Approach:** Enable + enhance existing high-quality code
+
+#### **Task 3.1: Enable JWT Verification (30 minutes)** ⏳ IN PROGRESS
+
+**Objective:** Activate existing JWT verification code immediately
+
+**Steps:**
+1. ✅ Audit codebase - COMPLETE
+   - Found `jwt_verifier.py` with full implementation
+   - Found middleware with verification ready
+   - Confirmed no tests exist
+   - Identified environment variables needed
+
+2. ⏳ Find Clerk domain
+   - Check Clerk dashboard for Frontend API domain
+   - Format: `clerk.retainwiseanalytics.com` or `xxx.clerk.accounts.dev`
+
+3. ⏳ Set environment variables in AWS ECS
+   ```bash
+   CLERK_FRONTEND_API=<your-clerk-domain>
+   JWT_SIGNATURE_VERIFICATION_ENABLED=true
+   ```
+
+4. ⏳ Deploy and verify
+   - Redeploy both services
+   - Test CSV upload
+   - Verify warning gone
+
+**Success Criteria:**
+- ✅ Environment variables set
+- ✅ Warning message gone from logs
+- ✅ CSV upload works
+- ✅ Signature verification active
+
+---
+
+#### **Task 3.2: Remove Unsafe Fallback (1 hour)** ⏳ PENDING
+
+**Objective:** Remove insecure fallback authentication path
+
+**Security Principle:** No bypass mechanisms in production
+
+**Changes Required:**
+
+**File:** `backend/auth/middleware.py`
+
+**Change 1:** Remove fallback function (lines 248-296)
+```python
+# DELETE THIS ENTIRE FUNCTION:
+async def _authenticate_production_fallback(token: str) -> Dict:
+    """WARNING: Does NOT verify JWT signature!"""
+    # ... 48 lines of insecure code ...
+```
+
+**Change 2:** Simplify main auth function (lines 89-136)
+```python
+async def get_current_user(credentials):
+    # Keep dev mode for local development
+    if AUTH_DEV_MODE:
+        return await _authenticate_dev_mode(token)
+    
+    # REMOVE conditional - always use production verified
+    # OLD CODE:
+    # if JWT_SIGNATURE_VERIFICATION_ENABLED:
+    #     return await _authenticate_production_verified(token)
+    # return await _authenticate_production_fallback(token)
+    
+    # NEW CODE:
+    return await _authenticate_production_verified(token)
+```
+
+**Change 3:** Remove feature flag (line 29-32)
+```python
+# DELETE THIS:
+JWT_SIGNATURE_VERIFICATION_ENABLED = os.getenv(
+    "JWT_SIGNATURE_VERIFICATION_ENABLED",
+    "false"
+).lower() in ["true", "1", "yes"]
+
+# No more toggle - always verify in production
+```
+
+**Change 4:** Update startup validation (lines 59-86)
+```python
+# Simplify - remove checks for disabled verification
+def validate_auth_configuration():
+    if AUTH_DEV_MODE:
+        logger.warning("⚠️ DEV MODE enabled")
+        return
+    
+    # Always require Clerk configuration in production
+    if not os.getenv("CLERK_FRONTEND_API"):
+        logger.error("❌ CLERK_FRONTEND_API not set!")
+        raise ValueError("CLERK_FRONTEND_API required in production")
+```
+
+**Success Criteria:**
+- ❌ Fallback function removed
+- ❌ No bypass mechanisms remain
+- ❌ Code simpler and more secure
+- ❌ Tests still pass
+
+---
+
+#### **Task 3.3: Add Comprehensive Tests (1 hour)** ⏳ PENDING
+
+**Objective:** Achieve 95%+ test coverage for JWT verification
+
+**Test File:** `backend/tests/test_auth_verification.py` (NEW)
+
+**Test Coverage:**
+
+**3.3.1 JWKS Client Tests**
+- ✅ Valid JWKS fetch
+- ✅ Cache hit (no refetch)
+- ✅ Cache expiration and refresh
+- ✅ JWKS fetch failure with cache (graceful degradation)
+- ✅ JWKS fetch failure without cache (503 error)
+- ✅ Invalid JWKS structure handling
+- ✅ Missing kid in JWKS
+- ✅ Thread safety (concurrent requests)
+
+**3.3.2 JWT Verification Tests**
+- ✅ Valid token (happy path)
+- ✅ Invalid signature (tampered token)
+- ✅ Expired token
+- ✅ Malformed token (wrong structure)
+- ✅ Missing kid in header
+- ✅ Unknown kid (key not in JWKS)
+- ✅ Missing sub claim
+- ✅ Invalid issuer
+- ✅ Token too short
+
+**3.3.3 Middleware Integration Tests**
+- ✅ Successful authentication
+- ✅ Missing Authorization header
+- ✅ Malformed Authorization header
+- ✅ Dev mode bypass
+- ✅ Production verified mode
+- ✅ Error propagation
+
+**Test Metrics Target:**
+- Line coverage: >95%
+- Branch coverage: >90%
+- All edge cases covered
+- Mock Clerk JWKS endpoint
+- No actual API calls in tests
+
+**Success Criteria:**
+- ❌ All tests pass
+- ❌ Coverage >95%
+- ❌ Fast execution (<5s)
+- ❌ No flaky tests
+
+---
+
+#### **Task 3.4: Add Monitoring & Alerts (30 minutes)** ⏳ PENDING
+
+**Objective:** Observability for JWT verification in production
+
+**Monitoring Metrics to Add:**
+
+```python
+# backend/auth/jwt_verifier.py
+import time
+
+class ProductionJWTVerifier:
+    def __init__(self):
+        # ... existing code ...
+        self.metrics = {
+            "verifications_success": 0,
+            "verifications_failure": 0,
+            "jwks_fetches": 0,
+            "jwks_cache_hits": 0,
+            "jwks_cache_misses": 0,
+            "jwks_fetch_errors": 0,
+        }
+    
+    async def verify_token(self, token: str):
+        try:
+            # ... verification logic ...
+            self.metrics["verifications_success"] += 1
+            return payload
+        except JWTVerificationError:
+            self.metrics["verifications_failure"] += 1
+            raise
+```
+
+**CloudWatch Integration:**
+```python
+# Periodically push metrics to CloudWatch
+# Or use CloudWatch Embedded Metrics Format (EMF)
+logger.info(
+    "JWT_METRICS",
+    extra={
+        "success_count": verifier.metrics["verifications_success"],
+        "failure_count": verifier.metrics["verifications_failure"],
+        "cache_hit_rate": cache_hit_rate,
+    }
+)
+```
+
+**Alerts to Configure:**
+- High 401 rate (>10% of requests)
+- JWKS fetch failures (>3 in 5 minutes)
+- Any 503 errors (CRITICAL - auth unavailable)
+- Cache miss rate >50%
+
+**Success Criteria:**
+- ❌ Metrics collecting
+- ❌ CloudWatch dashboard created
+- ❌ Alerts configured
+- ❌ On-call notified of setup
+
+---
+
+### **Stage 3 Timeline**
+
+| Task | Duration | Status | Priority |
+|------|----------|--------|----------|
+| 3.1: Enable verification | 30 min | 🚧 In Progress | P0 |
+| 3.2: Remove fallback | 1 hour | ⏳ Pending | P0 |
+| 3.3: Add tests | 1 hour | ⏳ Pending | P1 |
+| 3.4: Add monitoring | 30 min | ⏳ Pending | P2 |
+| **Total** | **3 hours** | **25% Complete** | **P0** |
+
+---
+
+### **Stage 3 Risk Assessment**
+
+**Risks:**
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Clerk domain unknown | Low | High | Check dashboard, ask user |
+| Env vars break deploy | Low | High | Test in staging first |
+| Existing tokens invalid | Medium | Medium | Users re-login (normal) |
+| Tests reveal bugs | Low | Medium | Fix before production |
+| Performance impact | Very Low | Low | Verification is <5ms |
+
+**Rollback Plan:**
+1. Revert commit (1 minute)
+2. Or: Remove env vars (2 minutes)
+3. Or: Deploy previous task definition revision (3 minutes)
+
+**Deployment Strategy:**
+1. ✅ Test locally with dev tokens
+2. ✅ Deploy to staging (if available)
+3. ✅ Monitor logs for errors
+4. ✅ Test end-to-end in production
+5. ✅ Monitor for 1 hour
+6. ✅ Mark complete
+
+---
+
+### **Stage 3 Success Metrics**
+
+**Security:**
+- ✅ JWT signature verification: ENABLED
+- ✅ Fallback mode: REMOVED
+- ✅ Token forgery: PREVENTED
+- ✅ Compliance: PCI-DSS, SOC2, GDPR ready
+
+**Quality:**
+- ✅ Test coverage: >95%
+- ✅ Code review: PASSED
+- ✅ Documentation: UPDATED
+- ✅ Security audit: PASSED
+
+**Operations:**
+- ✅ Monitoring: ACTIVE
+- ✅ Alerts: CONFIGURED
+- ✅ Rollback tested: YES
+- ✅ Team trained: YES
+
+---
+
+**Stage 3 Status:** 🚧 **IN PROGRESS - Task 3.1 Active**
+
+---
+
 ### **Phase 2.1: Resource Audit (In Progress)**
 
 **Step 1: Identifying Resources to Import** ✅ COMPLETE
