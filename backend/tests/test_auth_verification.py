@@ -148,10 +148,10 @@ class TestProductionJWTVerifier:
         with patch.dict('os.environ', {'CLERK_FRONTEND_API': 'clerk.example.com'}):
             verifier = ProductionJWTVerifier()
             
-            # Create properly async mock response
-            mock_response = AsyncMock()
-            mock_response.json = AsyncMock(return_value=valid_jwks_response)
-            mock_response.raise_for_status = AsyncMock()  # Make this async too
+            # Create mock response (json() and raise_for_status() are synchronous in httpx)
+            mock_response = Mock()
+            mock_response.json = Mock(return_value=valid_jwks_response)
+            mock_response.raise_for_status = Mock()  # Synchronous, not async
             mock_response.status_code = 200
             
             # Create async client mock
@@ -371,7 +371,7 @@ class TestAuthenticationMiddleware:
         token = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyXzEyMyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSJ9."
         
         with patch.dict('os.environ', {'AUTH_DEV_MODE': 'true', 'ENVIRONMENT': 'test'}):
-            # Mock PyJWT decode (patch where it's used, not the module)
+            # Mock PyJWT decode at library level (jwt is imported inside function)
             mock_payload = {
                 "sub": "user_123",
                 "email": "test@example.com",
@@ -381,7 +381,8 @@ class TestAuthenticationMiddleware:
                 "family_name": "User"
             }
             
-            with patch('backend.auth.middleware.pyjwt.decode', return_value=mock_payload):
+            # Patch jwt.decode at the library level
+            with patch('jwt.decode', return_value=mock_payload):
                 result = await _authenticate_dev_mode(token)
                 
                 assert result['id'] == 'user_123'
@@ -394,7 +395,7 @@ class TestAuthenticationMiddleware:
         with patch.dict('os.environ', {'AUTH_DEV_MODE': 'true', 'ENVIRONMENT': 'test'}):
             mock_payload = {"email": "test@example.com"}  # No 'sub'
             
-            with patch('backend.auth.middleware.pyjwt.decode', return_value=mock_payload):
+            with patch('jwt.decode', return_value=mock_payload):
                 with pytest.raises(HTTPException) as exc_info:
                     await _authenticate_dev_mode("fake.token")
                 
@@ -525,7 +526,7 @@ class TestEndToEndAuthentication:
             credentials = Mock(spec=HTTPAuthorizationCredentials)
             credentials.credentials = "dev.token.here"
             
-            with patch('backend.auth.middleware.pyjwt.decode', return_value=mock_payload):
+            with patch('jwt.decode', return_value=mock_payload):
                 result = await get_current_user(credentials)
                 
                 assert result['id'] == 'user_dev_123'
@@ -534,7 +535,12 @@ class TestEndToEndAuthentication:
     @pytest.mark.asyncio
     async def test_full_auth_flow_production(self, valid_jwt_payload):
         """Test complete authentication flow in production mode."""
-        with patch.dict('os.environ', {'CLERK_FRONTEND_API': 'clerk.example.com', 'AUTH_DEV_MODE': 'false', 'ENVIRONMENT': 'test'}):
+        # Force production mode explicitly
+        with patch.dict('os.environ', {
+            'CLERK_FRONTEND_API': 'clerk.example.com',
+            'AUTH_DEV_MODE': 'false',
+            'ENVIRONMENT': 'production'  # Set to production to avoid dev mode
+        }, clear=False):
             from fastapi.security import HTTPAuthorizationCredentials
             
             credentials = Mock(spec=HTTPAuthorizationCredentials)
@@ -544,12 +550,14 @@ class TestEndToEndAuthentication:
             mock_verifier = AsyncMock()
             mock_verifier.verify_token = AsyncMock(return_value=valid_jwt_payload)
             
-            with patch('backend.auth.jwt_verifier.get_jwt_verifier', return_value=mock_verifier):
-                result = await get_current_user(credentials)
-                
-                assert result['id'] == 'user_2NNEqL2nrIRdJ194ndJqAHwEfxC'
-                assert result['signature_verified'] is True
-                assert result['dev_mode'] is False
+            # Mock AUTH_DEV_MODE to be False in middleware module
+            with patch('backend.auth.middleware.AUTH_DEV_MODE', False):
+                with patch('backend.auth.jwt_verifier.get_jwt_verifier', return_value=mock_verifier):
+                    result = await get_current_user(credentials)
+                    
+                    assert result['id'] == 'user_2NNEqL2nrIRdJ194ndJqAHwEfxC'
+                    assert result['signature_verified'] is True
+                    assert result['dev_mode'] is False
 
 
 # ========================================================================
@@ -645,9 +653,10 @@ class TestPerformance:
             
             async def mock_get(*args, **kwargs):
                 fetch_count[0] += 1
-                mock_resp = AsyncMock()
-                mock_resp.json = AsyncMock(return_value=valid_jwks_response)
-                mock_resp.raise_for_status = AsyncMock()
+                # Return regular Mock, not AsyncMock (json() and raise_for_status() are sync)
+                mock_resp = Mock()
+                mock_resp.json = Mock(return_value=valid_jwks_response)
+                mock_resp.raise_for_status = Mock()
                 mock_resp.status_code = 200
                 return mock_resp
             
