@@ -433,6 +433,14 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name  = "LOG_LEVEL"
           value = "INFO"
+        },
+        {
+          name  = "CLERK_FRONTEND_API"
+          value = "clerk.retainwiseanalytics.com"
+        },
+        {
+          name  = "JWT_SIGNATURE_VERIFICATION_ENABLED"
+          value = "true"
         }
       ]
 

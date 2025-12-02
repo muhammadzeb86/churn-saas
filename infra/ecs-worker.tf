@@ -118,6 +118,14 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
         {
           name  = "DATABASE_URL"
           value = "postgresql://${aws_db_instance.main.username}:${aws_db_instance.main.password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+        },
+        {
+          name  = "CLERK_FRONTEND_API"
+          value = "clerk.retainwiseanalytics.com"
+        },
+        {
+          name  = "JWT_SIGNATURE_VERIFICATION_ENABLED"
+          value = "true"
         }
       ]
 
