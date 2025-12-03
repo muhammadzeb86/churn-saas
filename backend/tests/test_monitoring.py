@@ -292,7 +292,7 @@ class TestSyncEMFBackend:
         assert len(sanitized['dimensions']) <= 10
     
     def test_sanitize_special_characters(self, backend):
-        """Special characters should be removed from dimension values."""
+        """Special characters should be removed from dimension values, but hyphens preserved."""
         metric = {
             'metric_name': 'TestMetric',
             'value': 1.0,
@@ -304,7 +304,8 @@ class TestSyncEMFBackend:
         sanitized = backend._sanitize_metric(metric)
         
         # Only alphanumeric, underscores, hyphens, dots allowed
-        assert sanitized['dimensions']['Environment'] == 'produseast1123'
+        # Hyphens are preserved (safe and commonly used in identifiers like "us-east-1")
+        assert sanitized['dimensions']['Environment'] == 'produs-east-1123'
     
     def test_group_metrics_by_namespace_and_dimensions(self, backend):
         """Metrics should be grouped by namespace and dimensions for EMF."""
