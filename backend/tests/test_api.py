@@ -62,19 +62,22 @@ class TestAPI:
         response = client.get("/monitoring/metrics")
         assert response.status_code == 200
         data = response.json()
-        assert "total_requests" in data
-        assert "error_rate" in data
+        # Updated to match simplified health endpoint
+        assert "service" in data
         assert "uptime_seconds" in data
+        assert "uptime_formatted" in data
+        assert "timestamp" in data
     
     def test_monitoring_status(self, client):
         """Test monitoring status endpoint"""
         response = client.get("/monitoring/status")
         assert response.status_code == 200
         data = response.json()
-        # Status can be "starting", "operational", "warning", or "degraded"
-        assert data["status"] in ["starting", "operational", "warning", "degraded"]
-        assert "error_rate" in data
+        # Status can be "starting" or "operational" (simplified)
+        assert data["status"] in ["starting", "operational"]
         assert "uptime" in data
+        assert "uptime_seconds" in data
+        assert "timestamp" in data
     
     @pytest.mark.asyncio
     async def test_waitlist_valid_email(self, async_client: AsyncClient):
