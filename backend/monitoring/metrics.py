@@ -165,14 +165,22 @@ class CloudWatchMetricsEMF:
             # Cancel background task
             self._background_task.cancel()
             try:
-                await self._background_task
+                # Add timeout to prevent hanging
+                await asyncio.wait_for(self._background_task, timeout=2.0)
+            except asyncio.TimeoutError:
+                logger.warning("Background metrics task did not cancel within timeout")
             except asyncio.CancelledError:
                 logger.info("Background metrics task cancelled")
             
             self._background_task = None
         
-        # Shutdown thread pool
-        self._executor.shutdown(wait=True, cancel_futures=False)
+        # Shutdown thread pool (with timeout)
+        try:
+            # Use shutdown with wait=False and then wait with timeout
+            self._executor.shutdown(wait=False, cancel_futures=True)
+        except Exception as e:
+            logger.warning(f"Error shutting down thread pool: {e}")
+        
         logger.info("✅ CloudWatch EMF metrics client stopped")
     
     async def put_metric(
@@ -299,8 +307,11 @@ class CloudWatchMetricsEMF:
         if not self.enabled or self._queue is None:
             return
         
-        # Wait for queue to drain
-        await self._queue.join()
+        # Wait for queue to drain (with timeout to prevent hanging)
+        try:
+            await asyncio.wait_for(self._queue.join(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Queue did not drain within timeout during flush")
     
     # Convenience methods
     async def increment_counter(

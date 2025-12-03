@@ -83,8 +83,8 @@ class TestCloudWatchMetricsEMF:
         assert client._queue is not None
         assert client._background_task is not None
         
-        # Stop client
-        await client.stop()
+        # Stop client (with timeout to prevent hanging)
+        await asyncio.wait_for(client.stop(), timeout=3.0)
         assert client._background_task is None
     
     @pytest.mark.asyncio
@@ -113,7 +113,7 @@ class TestCloudWatchMetricsEMF:
             # The fact that put_metric returned True means it was successfully queued
         
         finally:
-            await client.stop()
+            await asyncio.wait_for(client.stop(), timeout=3.0)
     
     @pytest.mark.asyncio
     async def test_backpressure_when_queue_full(self, monkeypatch):
@@ -148,7 +148,7 @@ class TestCloudWatchMetricsEMF:
             assert result is False  # Dropped due to backpressure
         
         finally:
-            await client.stop()
+            await asyncio.wait_for(client.stop(), timeout=3.0)
     
     @pytest.mark.asyncio
     async def test_increment_counter_convenience(self, monkeypatch):
@@ -183,7 +183,7 @@ class TestCloudWatchMetricsEMF:
             assert metric['unit'] == MetricUnit.COUNT.value
         
         finally:
-            await client.stop()
+            await asyncio.wait_for(client.stop(), timeout=3.0)
     
     @pytest.mark.asyncio
     async def test_record_time_convenience(self, monkeypatch):
@@ -218,7 +218,7 @@ class TestCloudWatchMetricsEMF:
             assert metric['unit'] == MetricUnit.SECONDS.value
         
         finally:
-            await client.stop()
+            await asyncio.wait_for(client.stop(), timeout=3.0)
 
 
 class TestSyncEMFBackend:
