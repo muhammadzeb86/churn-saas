@@ -20,7 +20,6 @@ from backend.middleware.rate_limiter import rate_limit_middleware
 from backend.middleware.input_validator import input_validation_middleware
 from backend.middleware.security_logger import security_logging_middleware
 from backend.middleware.error_handler import setup_error_handlers, error_handler_middleware
-from backend.monitoring.metrics import monitoring_middleware
 
 # Import API routes
 from backend.api.routes import predict, powerbi, upload, waitlist, clerk, uploads_list, predictions, version, auth_metrics
@@ -150,7 +149,6 @@ app.add_middleware(
 app.middleware("http")(error_handler_middleware)
 
 # Security middleware (order matters - these run in reverse order)
-app.middleware("http")(monitoring_middleware)
 app.middleware("http")(rate_limit_middleware)
 app.middleware("http")(input_validation_middleware)
 app.middleware("http")(security_logging_middleware)
