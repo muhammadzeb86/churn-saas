@@ -67,18 +67,61 @@ aws ecs update-service \
 
 ---
 
+## **❌ WHY REVISION 2 STILL HAD THE SAME ERROR**
+
+**The Problem with My "Fix":**
+```python
+# backend/core/config.py (WRONG - Revision 2)
+return boto3.client(
+    "sqs",
+    region_name=queue_region,
+    endpoint_url=f"https://sqs.{queue_region}.amazonaws.com"  # ❌ THIS BROKE IT
+)
+```
+
+**Why This Failed:**
+- boto3 **auto-discovers** endpoints for AWS services
+- Specifying `endpoint_url` manually **breaks** discovery
+- AWS returns: `NonExistentQueue for this wsdl version` (misleading error!)
+- Error has nothing to do with queues - means **endpoint configuration is wrong**
+
+**The REAL Fix (Revision 3):**
+```python
+# backend/core/config.py (CORRECT - Revision 3)
+return boto3.client(
+    "sqs",
+    region_name=self.AWS_REGION  # ✅ Let boto3 auto-discover endpoint
+)
+```
+
+**When to Use endpoint_url:**
+- ✅ LocalStack/Moto (testing)
+- ✅ Custom AWS endpoints
+- ✅ S3-compatible services (MinIO)
+- ❌ **NEVER for real AWS services**
+
+---
+
 ## **🚀 DEPLOYMENT STATUS**
 
+### **CRITICAL UPDATES:**
+
+**Update 1 (20:35 UTC):**
+- ❌ Revision 2 HAD ERROR - endpoint_url parameter was wrong
+- ✅ **FIX:** Removed endpoint_url from boto3 client
+- ✅ Worker now connects to SQS successfully
+
+**Update 2 (21:35 UTC):**
+- ❌ SQS message schema mismatch - validation errors
+- ✅ **FIX:** Changed upload_id to str, s3_key to s3_file_path
+- ⏳ **Deploying:** Revision 86 (backend) with correct message format
+- **Ready for testing:** ~10 minutes (GitHub Actions build + deploy)
+
 ### **Current State:**
-- ✅ Backend: Revision 84 (active)
-- ⏳ Worker: Deploying revision 2 (was revision 1)
+- ✅ Backend: Will be revision 85 (deploying now)
+- ✅ Worker: Will be revision 3 (deploying now)
 - ✅ IAM Policies: VPC conditions removed
 - ✅ ML Models: Deployed in Docker image
-
-### **Expected Timeline:**
-- Worker deployment: ~2-3 minutes
-- Total time: ~5 minutes from now (20:28 UTC)
-- **Ready for testing:** ~20:33 UTC
 
 ---
 
@@ -206,6 +249,8 @@ Upload → QUEUED (immediate)
 5. ✅ **Force-deployment** doesn't change task definition revision
 6. ✅ **Worker deployment** needs automation in CI/CD
 7. ✅ **Train models locally** before deploying (faster iteration)
+8. ✅ **DO NOT specify endpoint_url for boto3** - let it auto-discover
+9. ✅ **"wsdl version" error** means boto3 endpoint configuration is wrong
 
 ---
 

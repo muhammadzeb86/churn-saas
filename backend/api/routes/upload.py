@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, Dict, Any
 import logging
+import time
 
 from backend.api.database import get_db
 from backend.models import Upload, User, Prediction, PredictionStatus
@@ -16,8 +17,10 @@ from backend.services.sqs_service import publish_prediction_task
 from backend.schemas.upload import UploadResponse, PresignedUrlResponse, UploadInfo, UserUploadsResponse
 from backend.core.config import settings
 from backend.auth.middleware import get_current_user, require_user_ownership
+from backend.monitoring.metrics import get_metrics_client, MetricUnit, MetricNamespace
 
 logger = logging.getLogger(__name__)
+metrics = get_metrics_client()
 
 router = APIRouter(tags=["upload"])
 
@@ -39,21 +42,45 @@ async def upload_csv(
     Returns:
         Upload response with success status and object key
     """
+    upload_start_time = time.time()
     logger.info(f"Received upload request for clerk_id: {user_id}, filename: {file.filename}")
+    
     try:
         # Verify user has access to upload for this user_id
         require_user_ownership(user_id, current_user)
         
         # Validate file type
         if not file.filename.lower().endswith('.csv'):
+            await metrics.increment_counter(
+                "UploadRejected",
+                namespace=MetricNamespace.API,
+                dimensions={"Reason": "InvalidFileType"}
+            )
             raise HTTPException(
                 status_code=400, 
                 detail="Only CSV files are allowed"
             )
         
         # Validate file size (e.g., max 10MB)
+        file_read_start = time.time()
         file_content = await file.read()
+        file_size_mb = len(file_content) / (1024 * 1024)
+        
+        # Track file size distribution
+        await metrics.put_metric(
+            "UploadFileSizeMB",
+            file_size_mb,
+            MetricUnit.MEGABYTES,
+            namespace=MetricNamespace.API,
+            dimensions={"FileSizeBucket": _get_file_size_bucket(file_size_mb)}
+        )
+        
         if len(file_content) > 10 * 1024 * 1024:  # 10MB limit
+            await metrics.increment_counter(
+                "UploadRejected",
+                namespace=MetricNamespace.API,
+                dimensions={"Reason": "FileTooLarge"}
+            )
             raise HTTPException(
                 status_code=400,
                 detail="File size exceeds 10MB limit"
@@ -72,6 +99,7 @@ async def upload_csv(
         db_user_id = user.id
         
         # Try to upload file to S3, fallback to local storage if AWS credentials not available
+        s3_upload_start = time.time()
         try:
             upload_result = s3_service.upload_file_stream(
                 file_content=file_content,
@@ -79,7 +107,22 @@ async def upload_csv(
                 filename=file.filename
             )
             
+            # Track S3 upload duration
+            s3_upload_duration = time.time() - s3_upload_start
+            await metrics.record_time(
+                "S3UploadDuration",
+                s3_upload_duration,
+                namespace=MetricNamespace.API,
+                dimensions={"FileSizeBucket": _get_file_size_bucket(file_size_mb)}
+            )
+            
             if not upload_result["success"]:
+                await metrics.increment_counter(
+                    "S3UploadFailure",
+                    namespace=MetricNamespace.API,
+                    dimensions={"Reason": "S3ServiceReturnedFailure"}
+                )
+                
                 # Fallback to local storage
                 import os
                 from pathlib import Path
@@ -99,8 +142,25 @@ async def upload_csv(
                     "size": len(file_content)
                 }
                 
+                await metrics.increment_counter(
+                    "LocalStorageFallback",
+                    namespace=MetricNamespace.API
+                )
+                
                 logger.info(f"Saved file locally: {file_path}")
+            else:
+                # S3 upload successful
+                await metrics.increment_counter(
+                    "S3UploadSuccess",
+                    namespace=MetricNamespace.API
+                )
+                
         except Exception as s3_error:
+            await metrics.increment_counter(
+                "S3UploadFailure",
+                namespace=MetricNamespace.API,
+                dimensions={"Reason": "Exception"}
+            )
             logger.warning(f"S3 upload failed, using local storage: {s3_error}")
             
             # Fallback to local storage
@@ -125,6 +185,7 @@ async def upload_csv(
             logger.info(f"Saved file locally: {file_path}")
         
         # Begin transaction - create Upload and Prediction records
+        db_write_start = time.time()
         try:
             # Create upload record (use db_user_id for foreign key)
             upload_record = Upload(
@@ -155,10 +216,30 @@ async def upload_csv(
             await db.refresh(upload_record)
             await db.refresh(prediction_record)
             
+            # Track database write duration
+            db_write_duration = time.time() - db_write_start
+            await metrics.record_time(
+                "DatabaseWriteDuration",
+                db_write_duration,
+                namespace=MetricNamespace.DATABASE,
+                dimensions={"Table": "uploads_predictions"}
+            )
+            
+            await metrics.increment_counter(
+                "DatabaseWriteSuccess",
+                namespace=MetricNamespace.DATABASE,
+                dimensions={"Table": "uploads"}
+            )
+            
             logger.info(f"upload: created prediction - upload_id={upload_record.id}, prediction_id={prediction_record.id}, db_user_id={db_user_id}, clerk_id={user_id}")
             
         except Exception as e:
             await db.rollback()
+            await metrics.increment_counter(
+                "DatabaseWriteError",
+                namespace=MetricNamespace.DATABASE,
+                dimensions={"Table": "uploads", "Operation": "insert"}
+            )
             logger.error(f"Database transaction failed: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to create upload and prediction records")
         
@@ -167,6 +248,7 @@ async def upload_csv(
         prediction_status = "QUEUED"
         
         if settings.PREDICTIONS_QUEUE_URL:
+            sqs_publish_start = time.time()
             try:
                 await publish_prediction_task(
                     queue_url=settings.PREDICTIONS_QUEUE_URL,
@@ -175,10 +257,30 @@ async def upload_csv(
                     user_id=db_user_id,  # Use database user_id for internal processing
                     s3_key=upload_result["object_key"]
                 )
+                
+                # Track SQS publishing duration
+                sqs_publish_duration = time.time() - sqs_publish_start
+                await metrics.record_time(
+                    "SQSPublishDuration",
+                    sqs_publish_duration,
+                    namespace=MetricNamespace.API
+                )
+                
+                await metrics.increment_counter(
+                    "SQSMessageSent",
+                    namespace=MetricNamespace.API,
+                    dimensions={"QueueType": "predictions"}
+                )
+                
                 logger.info(f"upload: published sqs message - prediction_id={prediction_record.id}, message_body={{upload_id: {upload_record.id}, s3_key: {upload_result['object_key']}}}")
                 
             except Exception as e:
                 # SQS publish failed - update prediction status
+                await metrics.increment_counter(
+                    "SQSMessageFailure",
+                    namespace=MetricNamespace.API,
+                    dimensions={"QueueType": "predictions"}
+                )
                 logger.error(f"upload: publish failed - prediction_id={prediction_record.id}, error={str(e)}")
                 
                 try:
@@ -196,7 +298,22 @@ async def upload_csv(
         else:
             logger.info(f"upload: SQS disabled - prediction {prediction_record.id} created but not queued for processing")
         
-        logger.info(f"Successfully uploaded CSV file: {file.filename} for clerk_id {user_id} (db_user_id: {db_user_id})")
+        # Track end-to-end upload duration
+        total_duration = time.time() - upload_start_time
+        await metrics.record_time(
+            "UploadEndToEndDuration",
+            total_duration,
+            namespace=MetricNamespace.API,
+            dimensions={"FileSizeBucket": _get_file_size_bucket(file_size_mb)}
+        )
+        
+        # Track upload success
+        await metrics.increment_counter(
+            "UploadSuccess",
+            namespace=MetricNamespace.API
+        )
+        
+        logger.info(f"Successfully uploaded CSV file: {file.filename} for clerk_id {user_id} (db_user_id: {db_user_id}) in {total_duration:.2f}s")
         
         # Return response (CORS handled by middleware)
         return {
@@ -212,13 +329,35 @@ async def upload_csv(
         }
         
     except HTTPException:
+        # Re-raise HTTP exceptions (already logged/tracked above)
         raise
     except Exception as e:
-        logger.error(f"Error uploading file: {str(e)}")
+        # Catch-all for unexpected errors
+        await metrics.increment_counter(
+            "UploadUnexpectedError",
+            namespace=MetricNamespace.API
+        )
+        logger.error(f"Error uploading file: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Internal server error during upload"
         )
+
+
+def _get_file_size_bucket(size_mb: float) -> str:
+    """
+    Bucket file sizes for dimension cardinality control.
+    
+    Prevents creating thousands of unique metric combinations.
+    """
+    if size_mb < 1:
+        return "<1MB"
+    elif size_mb < 5:
+        return "1-5MB"
+    elif size_mb < 10:
+        return "5-10MB"
+    else:
+        return ">10MB"
 
 @router.post("/presign", response_model=PresignedUrlResponse)
 async def get_presigned_upload_url(

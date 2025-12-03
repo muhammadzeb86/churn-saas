@@ -42,6 +42,16 @@ async def lifespan(app: FastAPI):
     # Log configuration
     settings.log_config()
     
+    # ✅ NEW: Initialize CloudWatch metrics client
+    try:
+        from backend.monitoring.metrics import get_metrics_client
+        metrics = get_metrics_client()
+        await metrics.start()
+        logger.info("CloudWatch metrics client started successfully")
+    except Exception as e:
+        logger.error(f"Metrics client initialization failed: {e}")
+        logger.warning("Metrics will not be published, but application will continue")
+    
     # Initialize database
     try:
         await init_db()
@@ -80,7 +90,16 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("=== RETAINWISE ANALYTICS BACKEND SHUTDOWN ===")
-    # Add any cleanup code here
+    
+    # ✅ NEW: Gracefully shutdown metrics client (flush remaining metrics)
+    try:
+        from backend.monitoring.metrics import get_metrics_client
+        metrics = get_metrics_client()
+        await metrics.stop()
+        logger.info("CloudWatch metrics client stopped successfully")
+    except Exception as e:
+        logger.error(f"Metrics client shutdown failed: {e}")
+    
     logger.info("=== SHUTDOWN COMPLETE ===")
 
 # Create FastAPI application with lifespan

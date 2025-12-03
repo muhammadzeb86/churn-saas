@@ -1,0 +1,36 @@
+[1mdiff --git a/infra/https.tf b/infra/https.tf[m
+[1mindex ea5bf4a..171ca75 100644[m
+[1m--- a/infra/https.tf[m
+[1m+++ b/infra/https.tf[m
+[36m@@ -55,6 +55,31 @@[m [mresource "aws_lb_listener" "backend_https" {[m
+   }[m
+ }[m
+ [m
+[32m+[m[32m# Redirect root domain to app subdomain[m
+[32m+[m[32mresource "aws_lb_listener_rule" "root_redirect" {[m
+[32m+[m[32m  listener_arn = aws_lb_listener.backend_https.arn[m
+[32m+[m[32m  priority     = 100[m
+[32m+[m
+[32m+[m[32m  action {[m
+[32m+[m[32m    type = "redirect"[m
+[32m+[m
+[32m+[m[32m    redirect {[m
+[32m+[m[32m      host        = "app.retainwiseanalytics.com"[m
+[32m+[m[32m      path        = "/#{path}"[m
+[32m+[m[32m      query       = "#{query}"[m
+[32m+[m[32m      port        = "443"[m
+[32m+[m[32m      protocol    = "HTTPS"[m
+[32m+[m[32m      status_code = "HTTP_301"[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  condition {[m
+[32m+[m[32m    host_header {[m
+[32m+[m[32m      values = ["retainwiseanalytics.com"][m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m
+ # Redirect HTTP to HTTPS[m
+ resource "aws_lb_listener" "backend_redirect" {[m
+   load_balancer_arn = aws_lb.main.arn[m

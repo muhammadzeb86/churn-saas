@@ -6,11 +6,13 @@ import logging
 import tempfile
 import os
 import uuid
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Union
 
 import pandas as pd
+import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -19,8 +21,10 @@ from backend.api.database import get_async_session
 from backend.models import Prediction, Upload, PredictionStatus
 from backend.ml.predict import RetentionPredictor
 from backend.services.s3_service import s3_service
+from backend.monitoring.metrics import get_metrics_client, MetricUnit, MetricNamespace
 
 logger = logging.getLogger(__name__)
+metrics = get_metrics_client()
 
 async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: str, user_id: str, s3_key: str) -> None:
     """
@@ -81,6 +85,7 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 raise ValueError(f"Upload {upload_id} not found")
         
         # Step 1: Download input CSV from S3
+        s3_download_start = time.time()
         logger.info(
             "Downloading input file from S3",
             extra={
@@ -100,14 +105,27 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         # Download file from S3
         download_result = s3_service.download_file(s3_key, temp_input_file.name)
         if not download_result.get('success', False):
+            await metrics.increment_counter(
+                "S3DownloadFailure",
+                namespace=MetricNamespace.WORKER
+            )
             raise Exception(f"Failed to download file from S3: {download_result.get('error')}")
         
+        # Track S3 download duration
+        s3_download_duration = time.time() - s3_download_start
+        await metrics.record_time(
+            "S3DownloadDuration",
+            s3_download_duration,
+            namespace=MetricNamespace.WORKER
+        )
+        
         logger.info(
-            "Successfully downloaded input file",
+            f"Successfully downloaded input file in {s3_download_duration:.2f}s",
             extra={
                 "event": "s3_download_completed",
                 "prediction_id": str(prediction_id),
-                "local_path": temp_input_file.name
+                "local_path": temp_input_file.name,
+                "duration": s3_download_duration
             }
         )
         
@@ -120,15 +138,68 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             }
         )
         
-        # Initialize the predictor
-        predictor = RetentionPredictor()
+        # Initialize the predictor (model loading)
+        model_load_start = time.time()
+        try:
+            predictor = RetentionPredictor()
+            model_load_duration = time.time() - model_load_start
+            
+            await metrics.record_time(
+                "ModelLoadDuration",
+                model_load_duration,
+                namespace=MetricNamespace.WORKER,
+                dimensions={"ColdStart": "false"}  # Would be "true" on first load
+            )
+        except Exception as e:
+            await metrics.increment_counter(
+                "ModelLoadError",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"ErrorType": type(e).__name__}
+            )
+            raise
         
-        # Load input data
+        # Load input data (CSV parsing)
+        csv_parse_start = time.time()
         input_df = pd.read_csv(temp_input_file.name)
         original_row_count = len(input_df)
+        csv_parse_duration = time.time() - csv_parse_start
         
-        # Run predictions
+        await metrics.record_time(
+            "CSVParseDuration",
+            csv_parse_duration,
+            namespace=MetricNamespace.WORKER
+        )
+        
+        await metrics.put_metric(
+            "CSVRowCount",
+            original_row_count,
+            MetricUnit.COUNT,
+            namespace=MetricNamespace.WORKER,
+            dimensions={"RowBucket": _get_row_bucket(original_row_count)}
+        )
+        
+        # Run predictions (ML inference)
+        ml_prediction_start = time.time()
         predictions_df = predictor.predict(input_df)
+        ml_prediction_duration = time.time() - ml_prediction_start
+        
+        # Track ML prediction duration
+        await metrics.record_time(
+            "MLPredictionDuration",
+            ml_prediction_duration,
+            namespace=MetricNamespace.WORKER,
+            dimensions={"RowBucket": _get_row_bucket(original_row_count)}
+        )
+        
+        # Track throughput (rows/second)
+        throughput = original_row_count / ml_prediction_duration if ml_prediction_duration > 0 else 0
+        await metrics.put_metric(
+            "PredictionThroughput",
+            throughput,
+            MetricUnit.NONE,
+            namespace=MetricNamespace.WORKER,
+            dimensions={"ModelVersion": "v1.0"}
+        )
         
         # Calculate metrics
         if 'retention_prediction' in predictions_df.columns:
@@ -136,7 +207,28 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         else:
             positive_rate = 0.0
         
-        metrics = {
+        # ML-SPECIFIC METRIC: Prediction confidence (if available)
+        if 'retention_probability' in predictions_df.columns:
+            avg_confidence = predictions_df['retention_probability'].mean() * 100
+            await metrics.put_metric(
+                "PredictionConfidenceAvg",
+                avg_confidence,
+                MetricUnit.PERCENT,
+                namespace=MetricNamespace.ML_PIPELINE,
+                dimensions={"ModelVersion": "v1.0"}
+            )
+            
+            # Track low-confidence predictions
+            low_confidence_count = (predictions_df['retention_probability'] < 0.6).sum()
+            low_confidence_pct = (low_confidence_count / len(predictions_df)) * 100
+            await metrics.put_metric(
+                "LowConfidencePredictionsPct",
+                low_confidence_pct,
+                MetricUnit.PERCENT,
+                namespace=MetricNamespace.ML_PIPELINE
+            )
+        
+        pred_metrics = {
             "rows_processed": len(predictions_df),
             "original_rows": original_row_count,
             "positive_rate": float(positive_rate),
@@ -148,8 +240,8 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             extra={
                 "event": "ml_processing_completed",
                 "prediction_id": str(prediction_id),
-                "rows_processed": metrics["rows_processed"],
-                "positive_rate": metrics["positive_rate"]
+                "rows_processed": pred_metrics["rows_processed"],
+                "positive_rate": pred_metrics["positive_rate"]
             }
         )
         
@@ -166,6 +258,7 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         # Step 4: Upload output to S3
         output_s3_key = f"predictions/{user_id}/{prediction_id}.csv"
         
+        s3_upload_start = time.time()
         logger.info(
             "Uploading prediction results to S3",
             extra={
@@ -186,20 +279,36 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         )
         
         if not upload_result.get('success', False):
+            await metrics.increment_counter(
+                "S3UploadFailure",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"FileType": "results"}
+            )
             raise Exception(f"Failed to upload results to S3: {upload_result.get('error')}")
         
         actual_s3_key = upload_result.get('object_key', output_s3_key)
         
+        # Track S3 upload duration
+        s3_upload_duration = time.time() - s3_upload_start
+        await metrics.record_time(
+            "S3UploadDuration",
+            s3_upload_duration,
+            namespace=MetricNamespace.WORKER,
+            dimensions={"FileType": "results"}
+        )
+        
         logger.info(
-            "Successfully uploaded prediction results",
+            f"Successfully uploaded prediction results in {s3_upload_duration:.2f}s",
             extra={
                 "event": "s3_upload_completed",
                 "prediction_id": str(prediction_id),
-                "s3_key": actual_s3_key
+                "s3_key": actual_s3_key,
+                "duration": s3_upload_duration
             }
         )
         
         # Step 5: Update database records
+        db_write_start = time.time()
         async with get_async_session() as db:
             # Update prediction record
             result = await db.execute(
@@ -210,8 +319,8 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             if prediction:
                 prediction.status = PredictionStatus.COMPLETED
                 prediction.s3_output_key = actual_s3_key
-                prediction.rows_processed = metrics["rows_processed"]
-                prediction.metrics_json = metrics
+                prediction.rows_processed = pred_metrics["rows_processed"]
+                prediction.metrics_json = pred_metrics
                 prediction.error_message = None
                 prediction.updated_at = datetime.utcnow()
             
@@ -227,6 +336,21 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             
             await db.commit()
         
+        # Track database write duration
+        db_write_duration = time.time() - db_write_start
+        await metrics.record_time(
+            "DatabaseWriteDuration",
+            db_write_duration,
+            namespace=MetricNamespace.DATABASE,
+            dimensions={"Table": "predictions"}
+        )
+        
+        await metrics.increment_counter(
+            "PredictionsSaved",
+            namespace=MetricNamespace.DATABASE,
+            dimensions={"Table": "predictions", "RowCount": str(_get_row_bucket(original_row_count))}
+        )
+        
         logger.info(
             "Prediction processing completed successfully",
             extra={
@@ -234,7 +358,7 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 "prediction_id": str(prediction_id),
                 "upload_id": upload_id,
                 "user_id": user_id,
-                "rows_processed": metrics["rows_processed"],
+                "rows_processed": pred_metrics["rows_processed"],
                 "s3_output_key": actual_s3_key
             }
         )
@@ -267,4 +391,23 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 os.unlink(temp_output_file.name)
                 logger.debug(f"Cleaned up temp output file: {temp_output_file.name}")
             except Exception as e:
-                logger.warning(f"Failed to clean up temp output file: {e}") 
+                logger.warning(f"Failed to clean up temp output file: {e}")
+
+
+def _get_row_bucket(row_count: int) -> str:
+    """
+    Bucket row counts for dimension cardinality control.
+    
+    Prevents creating thousands of unique metric combinations.
+    """
+    if row_count < 100:
+        return "<100"
+    elif row_count < 1000:
+        return "100-1000"
+    elif row_count < 10000:
+        return "1K-10K"
+    elif row_count < 100000:
+        return "10K-100K"
+    else:
+        return ">100K"
+ 

@@ -1,0 +1,59 @@
+{
+  "family": "retainwise-backend",
+  "taskRoleArn": "arn:aws:iam::908226940571:role/retainwise-ecs-task-role",
+  "executionRoleArn": "arn:aws:iam::908226940571:role/retainwise-ecs-task-execution-role",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "retainwise-backend",
+      "image": "908226940571.dkr.ecr.us-east-1.amazonaws.com/retainwise-backend:f65fa64a1f6311d283cc456d60330ba48a2d425f",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {"name": "S3_BUCKET", "value": "retainwise-uploads-908226940571"},
+        {"name": "AWS_REGION", "value": "us-east-1"},
+        {"name": "POWERBI_REPORT_ID", "value": "cda60607-7c02-47c5-a552-2b7c08a0d89c"},
+        {"name": "GIT_COMMIT_SHA", "value": "f65fa64a1f6311d283cc456d60330ba48a2d425f"},
+        {"name": "ENVIRONMENT", "value": "production"},
+        {"name": "POWERBI_TENANT_ID", "value": "2830aab0-cdb4-4a6b-82e4-8d7856122010"},
+        {"name": "APP_VERSION", "value": "2.0.0"},
+        {"name": "DATABASE_URL", "value": "postgresql://retainwiseuser:RetainWise2024!@retainwise-db.co9icy24a1d9.us-east-1.rds.amazonaws.com:5432/retainwise"},
+        {"name": "POWERBI_CLIENT_ID", "value": "d00fe407-6d4a-4d15-8213-63b898c0e762"},
+        {"name": "POWERBI_WORKSPACE_ID", "value": "cb604b66-17ab-4831-b8b9-2e718c5cf3f5"},
+        {"name": "DEPLOYMENT_ID", "value": "deploy-103"},
+        {"name": "BUILD_TIME", "value": "2025-10-26T18:35:00Z"},
+        {"name": "LOG_LEVEL", "value": "INFO"},
+        {"name": "CLERK_FRONTEND_API", "value": "clerk.retainwiseanalytics.com"},
+        {"name": "JWT_SIGNATURE_VERIFICATION_ENABLED", "value": "true"},
+        {"name": "AUTH_DEV_MODE", "value": "false"}
+      ],
+      "secrets": [
+        {
+          "name": "POWERBI_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:908226940571:secret:POWERBI_CLIENT_SECRET"
+        },
+        {
+          "name": "CLERK_WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:908226940571:secret:Clerk_Webhook"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/retainwise-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
+

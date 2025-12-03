@@ -8,8 +8,10 @@ Production-grade worker with:
 - Comprehensive error handling
 - Structured logging
 - Visibility timeout management
+- CloudWatch metrics (EMF format)
 
 Task 1.2: Deploy Worker Service
+Task 1.3: Monitoring & Alerting (added metrics)
 """
 import asyncio
 import json
@@ -17,6 +19,7 @@ import logging
 import signal
 import sys
 import uuid
+import time
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -29,8 +32,10 @@ from backend.api.database import get_async_session
 from backend.models import Prediction, PredictionStatus
 from backend.services.prediction_service import process_prediction
 from backend.schemas.sqs_messages import PredictionSQSMessage
+from backend.monitoring.metrics import get_metrics_client, MetricUnit, MetricNamespace
 
 logger = logging.getLogger(__name__)
+metrics = get_metrics_client()
 
 class PredictionWorker:
     """
@@ -52,6 +57,7 @@ class PredictionWorker:
         self.current_receipt_handle = None
         self.messages_processed = 0
         self.messages_failed = 0
+        self.metrics_initialized = False
         
         # Setup graceful shutdown
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -72,6 +78,15 @@ class PredictionWorker:
         logger.info(f"Environment: {settings.ENVIRONMENT}")
         logger.info(f"SQS Enabled: {settings.is_sqs_enabled}")
         logger.info("=" * 60)
+        
+        # Initialize metrics client
+        try:
+            await metrics.start()
+            self.metrics_initialized = True
+            logger.info("✅ CloudWatch metrics client started")
+        except Exception as e:
+            logger.warning(f"Failed to start metrics client: {e}")
+            logger.info("Worker will continue without metrics")
         
         if not self.queue_url:
             logger.error("❌ PREDICTIONS_QUEUE_URL not configured")
@@ -105,6 +120,15 @@ class PredictionWorker:
         
         # Shutdown summary
         uptime = (datetime.utcnow() - start_time).total_seconds()
+        
+        # Stop metrics client (flush remaining metrics)
+        if self.metrics_initialized:
+            try:
+                await metrics.stop()
+                logger.info("✅ CloudWatch metrics client stopped (metrics flushed)")
+            except Exception as e:
+                logger.warning(f"Error stopping metrics client: {e}")
+        
         logger.info("=" * 60)
         logger.info("🛑 Prediction Worker Shutdown")
         logger.info(f"Uptime: {uptime:.2f} seconds")
@@ -190,6 +214,8 @@ class PredictionWorker:
             "priority": "normal"
         }
         """
+        processing_start_time = time.time()
+        
         try:
             # Parse and validate message body with Pydantic
             body = json.loads(message['Body'])
@@ -198,6 +224,11 @@ class PredictionWorker:
             try:
                 validated_msg = PredictionSQSMessage(**body)
             except ValidationError as e:
+                await metrics.increment_counter(
+                    "MessageParseError",
+                    namespace=MetricNamespace.WORKER,
+                    dimensions={"ErrorType": "ValidationError"}
+                )
                 logger.error(
                     f"❌ Invalid SQS message structure",
                     extra={
@@ -284,19 +315,51 @@ class PredictionWorker:
                 )
             
             # Process the prediction
+            prediction_process_start = time.time()
             await process_prediction(prediction_id, upload_id, user_id, s3_key)
+            prediction_process_duration = time.time() - prediction_process_start
+            
+            # Track prediction processing duration
+            await metrics.record_time(
+                "PredictionProcessingDuration",
+                prediction_process_duration,
+                namespace=MetricNamespace.WORKER
+            )
+            
+            # Track end-to-end worker duration
+            total_duration = time.time() - processing_start_time
+            await metrics.record_time(
+                "WorkerEndToEndDuration",
+                total_duration,
+                namespace=MetricNamespace.WORKER,
+                dimensions={"Priority": validated_msg.priority}
+            )
+            
+            # Track success
+            await metrics.increment_counter(
+                "WorkerSuccess",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"Priority": validated_msg.priority}
+            )
             
             logger.info(
-                "Prediction processing completed",
+                f"Prediction processing completed in {total_duration:.2f}s",
                 extra={
                     "event": "prediction_processing_completed",
                     "prediction_id": str(prediction_id),
                     "upload_id": upload_id,
-                    "user_id": user_id
+                    "user_id": user_id,
+                    "duration": total_duration
                 }
             )
             
         except Exception as e:
+            # Track error
+            await metrics.increment_counter(
+                "WorkerUnexpectedError",
+                namespace=MetricNamespace.WORKER
+            )
+            
             # Update prediction status to FAILED
             if hasattr(self, 'current_prediction_id') and self.current_prediction_id:
                 try:

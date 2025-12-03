@@ -1,0 +1,105 @@
+AWS Support Case Template - ECS Network Interface Provisioning Failure
+=======================================================================
+
+CASE TYPE: Technical support
+SERVICE: Amazon ECS
+SEVERITY: Normal (or High if this is affecting production)
+SYSTEM STATUS: Degraded
+
+TITLE:
+ECS F ENDPOINT Service Failed - Network Interface Provisioning Timeout
+
+DESCRIPTION:
+I am experiencing persistent failures when attempting to scale up my ECS service due to network interface (ENI) provisioning timeouts. Despite multiple attempts and cleanup procedures, new tasks cannot be provisioned.
+
+DETAILS:
+
+Service Information:
+- Service Name: retainwise-service
+- Cluster: retainwise-cluster
+- Repository Name: retainwise-backend
+- Task Definition: retainwise-backend:69
+- Region: us-east-1
+- Launch Type: Fargate
+- Desired Count: 1
+- Current Running: 0
+
+Network Configuration:
+- Subnet 1: subnet-0d539fd1a67a870ec
+- Subnet 2: subnet-03dcb4c3648af8f4d
+- Security Group: sg-09e3fefba95c18c75
+- Public IP: Enabled
+
+Error Message:
+"Timeout waiting for network interface provisioning to complete."
+
+Timeline of Events:
+1. October 28, 2025, 21:00 UTC - Multiple failed deployment attempts began
+2. October 28, 2025, 21:54 UTC - First ENI timeout error observed
+3. October 28, 2025, 22:01 UTC - Scaled service down to 0 tasks
+4. October 28, 2025, 22:07 UTC - Waited 5+ minutes for ENI cleanup
+5. October 28, 2025, 22:10 UTC - Attempted scale up to 1 task
+6. October 28, 2025,  hoodium  22:27 UTC - Task still not starting, multiple deployments in IN_PROGRESS state
+
+Failed Task IDs:
+- 1171461948c2439f806be517c9e8f124
+- 22a244b8c75d4b96bed3fe39dc32497f
+- 52cfd71d210c4247bc79d8e770b1a25f
+- c1e28146d96e4f5fbadcba7b0734541a
+- e03cb74599d44582b4ea062656fb8d08
+
+Actions Already Taken:
+1. Scaled service to 0 and waited for ENI cleanup
+2. Verified no orphaned network interfaces
+3. Attempted force new deployment
+4. Verified security group and subnet configurations
+5. Waited extended periods for AWS internal cleanup
+
+REQUIRED INFORMATION FOR AWS SUPPORT:
+
+AWS Account ID:
+Your AWS Account ID (12 digits)
+
+Service ARN:
+arn:aws:ecs:us-east-1:908226940571:service/retainwise-cluster/retainwise-service
+
+Cluster ARN:
+arn:aws:ecs:us-east-1:908226940571:cluster/retainwise-cluster
+
+Resource Ids:
+aws ecs describe-services --cluster retainwise-cluster --services retainwise-service --region us-east-1 | grep serviceArn
+
+Recent Events:
+aws ecs describe-services --cluster retainwise-cluster --services retainwise-service --region us-east-1 --query 'services[0].events[0:10]' --output table
+
+WHAT WE NEED FROM AWS SUPPORT:
+1. Check for any ENI quota limits in our account for us-east-1 region
+2. Verify if there's a subnet IP address exhaustion issue
+3. Check for any stuck or orphaned network interfaces that need manual cleanup
+4. Investigate if this is a known issue in the us-east-1 region
+5. Provide guidance on immediate resolution steps
+
+SUPPORT LEVEL:
+Please ensure your support plan includes Technical Support
+
+=======================================================================
+INSTRUCTIONS TO SUBMIT:
+1. Go to https://console.aws.amazon.com/support/cases
+2. Click "Create case"
+3. Select "Technical support" or "Account and billing support"
+4. Fill in the details from above
+5. Select service as "Amazon ECS"
+6. Copy and paste the description and details sections
+7. Attach any relevant screenshots or logs
+8. Submit the case
+
+ALTERNATIVE: Use AWS CLI
+aws support create-case \
+  --service-code ecs \
+  --category-code network \
+  --communication-body file://AWS_SUPPORT_CASE_TEMPLATE.txt \
+  --subject "ECS Service - Network Interface Provisioning Timeout" \
+  --severity-code normal
+
+=======================================================================
+

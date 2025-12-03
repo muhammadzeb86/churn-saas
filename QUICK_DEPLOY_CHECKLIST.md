@@ -2,64 +2,63 @@
 
 ## ✅ PRE-DEPLOYMENT (10 min)
 
-- [ ] **Get Clerk domain** from dashboard.clerk.com → API Keys → Frontend API
+- [x] **Get Clerk domain** from dashboard.clerk.com → API Keys → Frontend API
   ```
-  Example: adapted-tern-12.clerk.accounts.dev
+  Domain: clerk.retainwiseanalytics.com
   ```
 
-- [ ] **Run local test**
+- [x] **Run local test**
   ```bash
-  $env:CLERK_FRONTEND_API="your-domain-here"
+  $env:CLERK_FRONTEND_API="clerk.retainwiseanalytics.com"
   python test_jwt_locally.py
   ```
   
-- [ ] **Verify test passes** (all ✅ green checks)
+- [x] **Verify test passes** (all ✅ green checks) - **COMPLETED**
 
 ---
 
 ## 🚀 DEPLOYMENT PHASE 1: Deploy Code (15 min)
 
-- [ ] **Commit and push**
+- [x] **Commit and push** - **COMPLETED** (commit: f65fa64)
   ```bash
   git add backend/auth/ backend/main.py test_jwt_locally.py
   git commit -m "feat: add JWT signature verification"
   git push origin main
   ```
 
-- [ ] **Watch GitHub Actions** complete
+- [x] **Watch GitHub Actions** complete - **COMPLETED**
 
-- [ ] **Verify ECS deployment**
+- [x] **Verify ECS deployment** - **COMPLETED** (task def: 62)
   ```bash
   aws ecs describe-services --cluster retainwise-cluster --service retainwise-service --region us-east-1
   ```
 
-- [ ] **Check logs for startup messages**
+- [x] **Check logs for startup messages** - **COMPLETED**
   ```bash
   aws logs tail /ecs/retainwise-backend --follow --since 5m --region us-east-1
   ```
-  Look for: ⚠️ "signature verification is DISABLED" (feature flag OFF)
+  Found: ⚠️ "signature verification is DISABLED" (feature flag OFF)
 
 ---
 
 ## 🔄 DEPLOYMENT PHASE 2: Enable Verification (5 min)
 
-- [ ] **Update ECS environment variables**
+- [x] **Update ECS environment variables** - **COMPLETED**
   ```
-  CLERK_FRONTEND_API = your-domain-here
+  CLERK_FRONTEND_API = clerk.retainwiseanalytics.com
   JWT_SIGNATURE_VERIFICATION_ENABLED = true
   AUTH_DEV_MODE = false
   ```
 
-- [ ] **Force new deployment**
-  ```bash
-  aws ecs update-service --cluster retainwise-cluster --service retainwise-service --force-new-deployment --region us-east-1
-  ```
+- [x] **Create new task definition** - **COMPLETED** (task def: 63)
 
-- [ ] **Check logs for activation**
+- [x] **Update service with new task definition** - **COMPLETED**
+
+- [x] **Check logs for activation** - **COMPLETED**
   ```bash
   aws logs tail /ecs/retainwise-backend --follow --since 2m --region us-east-1
   ```
-  Look for: ✅ "Production authentication mode ACTIVE"
+  Found: ✅ "JWT Verifier initialized", ✅ "JWKS fetched successfully", ✅ "Self-test PASSED"
 
 ---
 
