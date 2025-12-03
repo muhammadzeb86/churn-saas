@@ -106,12 +106,13 @@ resource "aws_sns_topic_subscription" "email_alerts" {
 # }
 
 # Output SNS topic ARN for reference
-output "sns_topic_arn" {
+# Note: Named "cloudwatch_alerts_sns_topic_arn" to avoid conflict with guardrails.tf output
+output "cloudwatch_alerts_sns_topic_arn" {
   description = "ARN of SNS topic for CloudWatch alerts"
   value       = aws_sns_topic.cloudwatch_alerts.arn
 }
 
-output "sns_topic_name" {
+output "cloudwatch_alerts_sns_topic_name" {
   description = "Name of SNS topic for CloudWatch alerts"
   value       = aws_sns_topic.cloudwatch_alerts.name
 }
