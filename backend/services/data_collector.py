@@ -29,8 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from backend.models import Base
-from backend.api.database import get_async_session
+from backend.api.database import Base, get_async_session
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, JSON
 
 logger = logging.getLogger(__name__)
