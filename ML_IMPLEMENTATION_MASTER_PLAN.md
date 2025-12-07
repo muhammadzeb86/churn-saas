@@ -77,8 +77,9 @@ Build a production-ready ML pipeline that:
 - ⏳ Email confirmation pending (non-blocking, can be done later)
 
 **⏳ Next Priority:**
-- ✅ Task 1.4: CSV Templates - **SKIPPED** (December 7, 2025) - Replaced with static sample CSVs in Task 1.5
-- ❌ No CSV preprocessing (assumes fixed column structure) → **Task 1.5 in progress**
+- ✅ Task 1.4: CSV Templates - **SKIPPED** (December 7, 2025)
+- ✅ Task 1.5: Column Mapper - **COMPLETE** (December 7, 2025)
+- ⏳ Task 1.7: Train SaaS-Specific Model - **PLANNED** (Permanent solution, 23 hours)
 - ❌ Missing feature validation → **Task 1.6 planned**
 - ❌ No data quality reporting → **Task 1.6 planned**
 - ❌ No visual dashboard (required for MVP launch)
@@ -656,10 +657,10 @@ Frontend shows results + data quality report
 
 #### **Task 1.5: Implement Intelligent Column Mapper (10 hours - ENHANCED)**
 **Priority:** P0 - CRITICAL  
-**Status:** 🚧 **IN PROGRESS** (December 7, 2025)  
-**Assigned To:** AI Assistant  
+**Status:** ✅ **COMPLETE** (December 7, 2025)  
+**Assigned To:** Completed  
 **Estimated:** 10 hours (enhanced from 6 hours for extra robustness)  
-**Actual:** -  
+**Actual:** 10 hours  
 
 **Scope Enhancement:** Absorbing Task 1.4 functionality + extra polish
 - ✅ 2 static sample CSV files (telecom + SaaS) with 10 rows each
@@ -700,12 +701,25 @@ Frontend shows results + data quality report
 
 ---
 
-#### **Task 1.6: Implement Feature Validator (6 hours)**
-**Priority:** P0 - CRITICAL  
-**Status:** ⏳ Not Started  
+#### **Task 1.7: Train SaaS-Specific ML Model (23 hours)** 🎯
+**Priority:** P1 - HIGH (PERMANENT SOLUTION)  
+**Status:** 📋 **PLANNED** (December 7, 2025)  
+**Assigned To:** Next in queue  
+**Estimated:** 23 hours over 2 weeks  
+**Actual:** -  
+**See Detailed Plan:** PHASE_1.7_SAAS_MODEL_TRAINING_PLAN.md
+
+**Summary:** Train dedicated SaaS-specific model (85%+ accuracy vs 76% current Telecom model). Native SaaS features, no workarounds. Permanent long-term solution.
+
+---
+
+#### **Task 1.6: Implement Feature Validator (6 hours)** ⏸️
+**Priority:** P2 - MEDIUM (On Hold)  
+**Status:** ⏸️ **ON HOLD** - Deferred until after Task 1.7  
 **Assigned To:** TBD  
 **Estimated:** 6 hours  
 **Actual:** -  
+**Note:** Task 1.7 takes priority as permanent solution  
 
 **Implementation:** See [Code Implementation - Feature Validator](#feature-validator)
 
