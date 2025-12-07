@@ -1,0 +1,12 @@
+user_id,company_name,company_size,industry,months_subscribed,mrr,total_revenue,plan_type,feature_usage_score,support_tickets,login_frequency,api_calls_per_month,seats_purchased,seats_used,last_activity_days_ago,has_integration,payment_method,trial_converted
+user_0001,Acme Corp,11-50,Technology,12,149.00,1788.00,Professional,78.5,2,8.3,12500,5,4,3,Yes,Credit Card,Yes
+user_0002,Beta Industries,51-200,Healthcare,24,299.00,7176.00,Enterprise,92.1,1,15.2,45000,15,14,1,Yes,ACH,Yes
+user_0003,Gamma LLC,1-10,Finance,6,49.00,294.00,Starter,45.2,5,3.1,2500,2,1,7,No,Credit Card,No
+user_0004,Delta Systems,201-1000,Retail,36,499.00,17964.00,Enterprise,88.9,0,18.5,78000,25,23,0,Yes,Invoice,Yes
+user_0005,Epsilon Co,11-50,Manufacturing,8,149.00,1192.00,Professional,65.3,3,5.7,8900,5,3,2,Yes,Credit Card,Yes
+user_0006,Zeta Technologies,1-10,Education,3,0.00,0.00,Free,22.1,8,1.2,500,1,1,15,No,Credit Card,No
+user_0007,Eta Solutions,51-200,Technology,18,299.00,5382.00,Enterprise,81.4,2,12.8,32000,12,11,1,Yes,ACH,Yes
+user_0008,Theta Group,11-50,Finance,9,149.00,1341.00,Professional,72.6,1,7.5,15600,5,5,2,No,Credit Card,Yes
+user_0009,Iota Ventures,1-10,Retail,1,49.00,49.00,Starter,18.7,12,0.8,450,2,0,28,No,Credit Card,No
+user_0010,Kappa Enterprises,1000+,Healthcare,48,999.00,47952.00,Enterprise,95.3,0,22.1,125000,50,48,0,Yes,Invoice,Yes
+

@@ -1,4 +1,1 @@
-# ML package 
-
-from .predict import RetentionPredictor  # re-export
-
+"""ML package for RetainWise"""

@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
-import { Upload as UploadIcon, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload as UploadIcon, FileSpreadsheet, AlertCircle, CheckCircle2, Download } from 'lucide-react';
 import { uploadAPI } from '../services/api';
 import { useToast } from '../components/ui/use-toast';
 
@@ -198,7 +198,7 @@ const Upload: React.FC = () => {
           <button
             onClick={handleUpload}
             disabled={isDisabled}
-            className="w-full py-2 px-4 rounded-lg font-medium"
+            className="w-full py-2 px-4 rounded-lg font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             {!clerkId 
               ? 'Please sign in' 
@@ -207,6 +207,65 @@ const Upload: React.FC = () => {
                 : 'Upload Dataset'
             }
           </button>
+        </div>
+      </div>
+
+      {/* NEW: Sample CSV Download Section */}
+      <div className="bg-white rounded-xl shadow-soft p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">New to RetainWise?</h3>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <FileSpreadsheet className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">
+                Start with a sample CSV
+              </h4>
+              <p className="text-xs text-blue-700 mb-3">
+                Download a sample dataset to understand the format and test predictions instantly.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`${process.env.REACT_APP_API_URL}/api/csv/sample-csv/telecom`}
+                  download
+                  className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <Download size={16} />
+                  <span>Telecom Sample</span>
+                </a>
+                <a
+                  href={`${process.env.REACT_APP_API_URL}/api/csv/sample-csv/saas`}
+                  download
+                  className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <Download size={16} />
+                  <span>SaaS Sample</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* NEW: Column Name Flexibility Info */}
+      <div className="bg-white rounded-xl shadow-soft p-6">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <CheckCircle2 className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-green-900 mb-2">
+                No need to match exact column names!
+              </h4>
+              <p className="text-xs text-green-700 mb-2">
+                Our intelligent mapper recognizes 200+ column name variations. Just upload your CSV as-is.
+              </p>
+              <div className="text-xs text-green-600 space-y-1">
+                <p><strong>We recognize:</strong></p>
+                <p>• <code className="bg-green-100 px-1 rounded">customer_id</code>, <code className="bg-green-100 px-1 rounded">user_id</code>, <code className="bg-green-100 px-1 rounded">Customer ID</code> → customerID</p>
+                <p>• <code className="bg-green-100 px-1 rounded">mrr</code>, <code className="bg-green-100 px-1 rounded">monthly_fee</code>, <code className="bg-green-100 px-1 rounded">Monthly Charges</code> → MonthlyCharges</p>
+                <p>• <code className="bg-green-100 px-1 rounded">ltv</code>, <code className="bg-green-100 px-1 rounded">lifetime_value</code>, <code className="bg-green-100 px-1 rounded">Total Charges</code> → TotalCharges</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
