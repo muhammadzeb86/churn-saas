@@ -189,8 +189,15 @@ jobs:
     - name: Check for infrastructure changes
       id: infra-changes
       run: |
-        # Check if infra directory has changes in this commit
+        # Check if infra directory has changes in recent commits
+        # Check last commit first (most common case)
         INFRA_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^infra/' || echo "")
+        
+        # If no changes in last commit, check last 10 commits (covers multi-commit pushes)
+        if [ -z "$INFRA_CHANGED" ]; then
+          INFRA_CHANGED=$(git diff --name-only HEAD~10 HEAD | grep '^infra/' || echo "")
+        fi
+        
         if [ -n "$INFRA_CHANGED" ]; then
           echo "changes=true" >> $GITHUB_OUTPUT
           echo "✅ Infrastructure changes detected"

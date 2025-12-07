@@ -4,6 +4,9 @@
 **How to Test & Verify Each Feature**  
 **Step-by-Step Checklist**
 
+**Last Updated:** December 7, 2025  
+**Status:** ✅ CSV Download Fix Applied, Terraform Detection Enhanced
+
 ---
 
 ## 🎯 **OVERVIEW**
@@ -408,6 +411,20 @@ These improvements happen automatically:
 ---
 
 ## 📝 **TROUBLESHOOTING**
+
+### **Issue: Sample CSV downloads as .htm file instead of .csv**
+- **Status:** ✅ FIXED (December 7, 2025)
+- **Root Cause:** FileResponse wasn't setting proper Content-Disposition headers
+- **Fix Applied:** Changed to Response with explicit headers:
+  - `Content-Type: text/csv; charset=utf-8`
+  - `Content-Disposition: attachment; filename="retainwise_sample_{industry}.csv"`
+- **Verification:** Download should now save as .csv file
+
+### **Issue: Terraform Plan/Apply skipped in CI/CD**
+- **Status:** ✅ FIXED (December 7, 2025)
+- **Root Cause:** Git diff check only looked at last commit (HEAD~1)
+- **Fix Applied:** Now checks last 10 commits for infra changes
+- **Verification:** Terraform should run if infra/ files changed in recent commits
 
 ### **Issue: Sample CSV buttons not visible**
 - **Check:** Is frontend deployed? Check browser console for errors

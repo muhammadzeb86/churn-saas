@@ -143,10 +143,19 @@ async def download_sample_csv(industry: str):
     
     logger.info(f"Sample CSV download: industry={industry}")
     
-    return FileResponse(
-        path=str(sample_file),
-        filename=f"retainwise_sample_{industry}.csv",
-        media_type="text/csv"
+    # Read file content and return with explicit CSV headers
+    from fastapi.responses import Response
+    
+    with open(sample_file, 'rb') as f:
+        content = f.read()
+    
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="retainwise_sample_{industry}.csv"',
+            "Content-Type": "text/csv; charset=utf-8"
+        }
     )
 
 
