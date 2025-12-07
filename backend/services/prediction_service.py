@@ -22,6 +22,8 @@ from backend.models import Prediction, Upload, PredictionStatus
 from backend.ml.predict import RetentionPredictor
 from backend.ml.column_mapper import IntelligentColumnMapper
 from backend.services.s3_service import s3_service
+from backend.services.prediction_router import get_prediction_router
+from backend.services.data_collector import get_data_collector
 from backend.monitoring.metrics import get_metrics_client, MetricUnit, MetricNamespace
 
 logger = logging.getLogger(__name__)
@@ -142,7 +144,10 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         # Initialize the predictor (model loading)
         model_load_start = time.time()
         try:
-            predictor = RetentionPredictor()
+            # Initialize prediction router for A/B testing (Task 1.7)
+            # Routes between Telecom model (control) and SaaS baseline (treatment)
+            router = get_prediction_router()
+            data_collector = get_data_collector()
             model_load_duration = time.time() - model_load_start
             
             await metrics.record_time(
@@ -287,10 +292,35 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             logger.error(f"Unexpected column mapping error: {str(e)}")
             raise ValueError(f"Column mapping failed: {str(e)}")
         
-        # Run predictions (ML inference) with mapped DataFrame
+        # Run predictions (ML inference) with mapped DataFrame via A/B router
         ml_prediction_start = time.time()
-        predictions_df = predictor.predict(mapped_df)  # Use mapped_df instead of input_df
+        
+        # Route prediction to appropriate model (A/B test: Telecom vs SaaS baseline)
+        prediction_result = router.route_prediction(mapped_df)
+        
+        # Handle batch vs single prediction
+        if 'predictions' in prediction_result:
+            # Batch prediction
+            predictions_df = pd.DataFrame(prediction_result['predictions'])
+        else:
+            # Single prediction - convert to DataFrame
+            predictions_df = pd.DataFrame([prediction_result])
+        
         ml_prediction_duration = time.time() - ml_prediction_start
+        
+        # Log prediction for future model training (collect real data!)
+        try:
+            for idx, row in mapped_df.iterrows():
+                customer_data = row.to_dict()
+                pred_data = predictions_df.iloc[idx].to_dict() if idx < len(predictions_df) else prediction_result
+                await data_collector.record_prediction(
+                    customer_data=customer_data,
+                    prediction_result=pred_data,
+                    prediction_id=str(prediction_id)
+                )
+        except Exception as e:
+            logger.warning(f"Failed to log prediction for training: {e}")
+            # Don't fail prediction if logging fails
         
         # Track ML prediction duration
         await metrics.record_time(

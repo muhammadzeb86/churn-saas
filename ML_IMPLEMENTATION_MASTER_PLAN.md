@@ -79,9 +79,8 @@ Build a production-ready ML pipeline that:
 **⏳ Next Priority:**
 - ✅ Task 1.4: CSV Templates - **SKIPPED** (December 7, 2025)
 - ✅ Task 1.5: Column Mapper - **COMPLETE** (December 7, 2025)
-- ⏳ Task 1.7: Train SaaS-Specific Model - **PLANNED** (Permanent solution, 23 hours)
-- ❌ Missing feature validation → **Task 1.6 planned**
-- ❌ No data quality reporting → **Task 1.6 planned**
+- 🎯 Task 1.7: SaaS Baseline + Data Collection - **STARTING NOW** (4 hours, pragmatic solution)
+- ⏸️ Task 1.6: Feature Validation - **ON HOLD** (after real data collection)
 - ❌ No visual dashboard (required for MVP launch)
 
 ### **Updated Timeline (Phases 1-4)**
