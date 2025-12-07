@@ -51,30 +51,66 @@ class RetentionPredictor:
             raise
     
     def clean_data(self, df):
-        """Clean and preprocess the data."""
+        """
+        Clean and preprocess the data.
+        
+        Handles missing columns gracefully for both Telecom and SaaS industries.
+        Columns are expected to be already standardized by IntelligentColumnMapper.
+        """
         logger.info("Cleaning and preprocessing data...")
         
         df = df.copy()
         
-        # Clean TotalCharges
-        df['TotalCharges'] = df['TotalCharges'].replace(r'^\s*$', np.nan, regex=True)
-        df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
-        total_charges_median = df['TotalCharges'].median()
-        df['TotalCharges'].fillna(total_charges_median, inplace=True)
+        # Clean TotalCharges (if present)
+        if 'TotalCharges' in df.columns:
+            df['TotalCharges'] = df['TotalCharges'].replace(r'^\s*$', np.nan, regex=True)
+            df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+            total_charges_median = df['TotalCharges'].median()
+            df['TotalCharges'].fillna(total_charges_median, inplace=True)
+            logger.info("TotalCharges column cleaned")
+        else:
+            logger.warning("TotalCharges column not found - skipping cleaning")
         
-        # Convert dtypes
-        df['SeniorCitizen'] = df['SeniorCitizen'].astype(np.int8)
-        df['tenure'] = df['tenure'].astype(np.int16)
+        # Convert dtypes (only if columns exist)
+        if 'SeniorCitizen' in df.columns:
+            try:
+                df['SeniorCitizen'] = df['SeniorCitizen'].astype(np.int8)
+                logger.info("SeniorCitizen column converted to int8")
+            except Exception as e:
+                logger.warning(f"Could not convert SeniorCitizen to int8: {str(e)}")
+        else:
+            logger.info("SeniorCitizen column not found - optional column, skipping")
         
-        # Convert categorical columns
+        if 'tenure' in df.columns:
+            try:
+                df['tenure'] = df['tenure'].astype(np.int16)
+                logger.info("tenure column converted to int16")
+            except Exception as e:
+                logger.error(f"Could not convert tenure to int16: {str(e)}")
+                raise ValueError("Required column 'tenure' has invalid data type")
+        else:
+            logger.error("Required column 'tenure' is missing")
+            raise ValueError("Required column 'tenure' is missing after column mapping")
+        
+        # Convert categorical columns (only if present)
         categorical_cols = [
             'gender', 'Partner', 'Dependents', 'PhoneService', 'MultipleLines',
             'InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
             'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract',
             'PaperlessBilling', 'PaymentMethod'
         ]
+        
+        found_categorical = 0
         for col in categorical_cols:
-            df[col] = df[col].astype('category')
+            if col in df.columns:
+                try:
+                    df[col] = df[col].astype('category')
+                    found_categorical += 1
+                except Exception as e:
+                    logger.warning(f"Could not convert {col} to category: {str(e)}")
+            # No warning for missing optional columns - this is normal for SaaS
+        
+        logger.info(f"Data cleaning complete: {found_categorical}/{len(categorical_cols)} optional categorical columns found")
         
         return df
     

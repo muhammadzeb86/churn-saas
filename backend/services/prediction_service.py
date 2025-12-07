@@ -20,6 +20,7 @@ from backend.core.config import settings
 from backend.api.database import get_async_session
 from backend.models import Prediction, Upload, PredictionStatus
 from backend.ml.predict import RetentionPredictor
+from backend.ml.column_mapper import IntelligentColumnMapper
 from backend.services.s3_service import s3_service
 from backend.monitoring.metrics import get_metrics_client, MetricUnit, MetricNamespace
 
@@ -178,9 +179,117 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             dimensions={"RowBucket": _get_row_bucket(original_row_count)}
         )
         
-        # Run predictions (ML inference)
+        # ========================================
+        # COLUMN MAPPING INTEGRATION (Task 1.5)
+        # ========================================
+        # SAAS-ONLY FOCUS (100% Production-Grade)
+        # RetainWise targets ONLY SaaS companies - no industry detection needed
+        # The SaaS column mapper handles ALL SaaS variations:
+        # - Stripe exports, Chargebee, ChartMogul, Custom systems
+        # - 200+ column aliases for maximum compatibility
+        # - Works with ANY real SaaS company CSV
+        
+        logger.info(
+            "Column mapping: SaaS-only focus (RetainWise = SaaS churn prediction platform)",
+            extra={
+                "event": "column_mapping_start",
+                "target_market": "saas_only",
+                "s3_key": s3_key
+            }
+        )
+        
+        # Apply intelligent column mapping (SaaS-only)
+        column_mapping_start = time.time()
+        try:
+            # SaaS-only mapper (handles ALL SaaS CSV variations)
+            mapper = IntelligentColumnMapper(industry='saas')
+            mapping_report = mapper.map_columns(input_df)
+            
+            # Check if mapping was successful
+            if not mapping_report.success:
+                missing_cols = ', '.join(mapping_report.missing_required)
+                error_msg = (
+                    f"Missing required columns: {missing_cols}. "
+                    f"Please ensure your CSV has columns for: customerID, tenure, MonthlyCharges, TotalCharges, Contract."
+                )
+                
+                # Add suggestions if available
+                if mapping_report.suggestions:
+                    error_msg += f" Suggestions: {'; '.join(mapping_report.suggestions[:3])}"
+                
+                logger.error(
+                    f"Column mapping failed: {error_msg}",
+                    extra={
+                        "event": "column_mapping_failed",
+                        "missing_columns": mapping_report.missing_required,
+                        "mapped_columns": len(mapping_report.matches),
+                        "confidence": mapping_report.confidence_avg
+                    }
+                )
+                raise ValueError(error_msg)
+            
+            # Apply mapping to DataFrame (standardizes columns)
+            mapped_df = mapper.apply_mapping(input_df, mapping_report)
+            
+            column_mapping_duration = time.time() - column_mapping_start
+            
+            # Log mapping success
+            logger.info(
+                f"Column mapping successful: {len(mapping_report.matches)} columns mapped, "
+                f"confidence: {mapping_report.confidence_avg:.1f}%, "
+                f"duration: {column_mapping_duration:.3f}s",
+                extra={
+                    "event": "column_mapping_success",
+                    "target_market": "saas",
+                    "columns_mapped": len(mapping_report.matches),
+                    "confidence_avg": mapping_report.confidence_avg,
+                    "duration_ms": column_mapping_duration * 1000
+                }
+            )
+            
+            # Track column mapping metrics
+            await metrics.record_time(
+                "ColumnMappingDuration",
+                column_mapping_duration,
+                namespace=MetricNamespace.WORKER
+            )
+            
+            await metrics.put_metric(
+                "ColumnMappingConfidence",
+                mapping_report.confidence_avg,
+                MetricUnit.PERCENT,
+                namespace=MetricNamespace.WORKER,
+                dimensions={"TargetMarket": "saas"}
+            )
+            
+            await metrics.increment_counter(
+                "ColumnMappingSuccess",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"TargetMarket": "saas"}
+            )
+            
+        except ValueError as e:
+            # Column mapping validation failed
+            await metrics.increment_counter(
+                "ColumnMappingFailure",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"ErrorType": "MissingColumns"}
+            )
+            logger.error(f"Column mapping validation failed: {str(e)}")
+            raise
+        except Exception as e:
+            # Unexpected column mapping error
+            await metrics.increment_counter(
+                "ColumnMappingFailure",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"ErrorType": type(e).__name__}
+            )
+            logger.error(f"Unexpected column mapping error: {str(e)}")
+            raise ValueError(f"Column mapping failed: {str(e)}")
+        
+        # Run predictions (ML inference) with mapped DataFrame
         ml_prediction_start = time.time()
-        predictions_df = predictor.predict(input_df)
+        predictions_df = predictor.predict(mapped_df)  # Use mapped_df instead of input_df
         ml_prediction_duration = time.time() - ml_prediction_start
         
         # Track ML prediction duration

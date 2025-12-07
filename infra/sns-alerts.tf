@@ -69,12 +69,12 @@ resource "aws_sns_topic_policy" "cloudwatch_alerts_policy" {
 }
 
 # Email subscription (MANUAL CONFIRMATION REQUIRED)
-# After applying Terraform, ops team must click confirmation link in email
+# After applying Terraform, support team must click confirmation link in email
 
 variable "alert_email" {
   description = "Email address to receive CloudWatch alerts"
   type        = string
-  default     = "ops@retainwiseanalytics.com"  # TODO: Change to actual ops email
+  default     = "support@retainwiseanalytics.com"
 }
 
 resource "aws_sns_topic_subscription" "email_alerts" {
