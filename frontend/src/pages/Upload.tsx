@@ -118,7 +118,8 @@ const Upload: React.FC = () => {
 
   const downloadSampleCSV = async (industry: 'telecom' | 'saas') => {
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || '';
+      // Use the same API URL configuration as the rest of the app
+      const apiUrl = process.env.REACT_APP_BACKEND_URL || 'https://backend.retainwiseanalytics.com';
       const url = `${apiUrl}/api/csv/sample-csv/${industry}`;
       
       // Fetch the file with proper headers
@@ -127,6 +128,8 @@ const Upload: React.FC = () => {
         headers: {
           'Accept': 'text/csv',
         },
+        // Important: Don't include credentials for public endpoint
+        credentials: 'omit',
       });
 
       if (!response.ok) {

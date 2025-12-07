@@ -154,10 +154,9 @@ async def download_sample_csv(industry: str):
     
     return Response(
         content=content,
-        media_type="text/csv",
+        media_type="text/csv; charset=utf-8",  # Single Content-Type (no duplicate)
         headers={
             "Content-Disposition": f'attachment; filename="retainwise_sample_{industry}.csv"',
-            "Content-Type": "text/csv; charset=utf-8",
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
             "Expires": "0"
