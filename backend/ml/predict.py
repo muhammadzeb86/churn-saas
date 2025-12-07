@@ -115,8 +115,13 @@ class RetentionPredictor:
         return df
     
     def prepare_features(self, df):
-        """Prepare features for prediction."""
-        logger.info("Preparing features...")
+        """
+        Prepare features for prediction with SaaS-to-Telecom alignment.
+        
+        The model was trained on Telecom data (45 features).
+        This method aligns SaaS data to match Telecom features.
+        """
+        logger.info("Preparing features for prediction...")
         
         # Drop customerID if present
         if 'customerID' in df.columns:
@@ -126,8 +131,86 @@ class RetentionPredictor:
         if 'Churn' in df.columns:
             df = df.drop('Churn', axis=1)
         
-        # Convert categorical variables
+        # ========================================
+        # SAAS-TO-TELECOM FEATURE ALIGNMENT
+        # ========================================
+        # The model expects Telecom features but receives SaaS data
+        # We need to add/map missing Telecom features
+        
+        # Required Telecom categorical features that model expects
+        telecom_required_features = {
+            'gender': 'Male',  # Default
+            'SeniorCitizen': 0,  # Default: Not senior
+            'Partner': 'No',  # Default
+            'Dependents': 'No',  # Default
+            'PhoneService': 'Yes',  # Default: Has phone
+            'MultipleLines': 'No',  # Default
+            'InternetService': 'Fiber optic',  # Default: Premium service (SaaS assumption)
+            'OnlineSecurity': 'No',  # Default
+            'OnlineBackup': 'No',  # Default
+            'DeviceProtection': 'No',  # Default
+            'TechSupport': 'No',  # Default
+            'StreamingTV': 'No',  # Default
+            'StreamingMovies': 'No',  # Default
+            'PaperlessBilling': 'Yes',  # Default: Modern/SaaS companies use digital
+            'PaymentMethod': 'Electronic check'  # Default
+        }
+        
+        # Add missing Telecom features with defaults
+        for feature, default_value in telecom_required_features.items():
+            if feature not in df.columns:
+                df[feature] = default_value
+                logger.info(f"Added missing Telecom feature: {feature} = {default_value}")
+        
+        # Convert categorical variables to one-hot encoding
         X = pd.get_dummies(df)
+        
+        logger.info(f"Features after one-hot encoding: {X.shape[1]} features")
+        
+        # ========================================
+        # FEATURE MATCHING TO MODEL EXPECTATIONS
+        # ========================================
+        # The model was trained on specific feature names
+        # We need to ensure we have exactly those features
+        
+        # Expected features from Telecom model (45 features)
+        # This is the feature set the model was trained on
+        expected_features = [
+            'tenure', 'MonthlyCharges', 'TotalCharges', 'SeniorCitizen',
+            'gender_Female', 'gender_Male',
+            'Partner_No', 'Partner_Yes',
+            'Dependents_No', 'Dependents_Yes',
+            'PhoneService_No', 'PhoneService_Yes',
+            'MultipleLines_No', 'MultipleLines_No phone service', 'MultipleLines_Yes',
+            'InternetService_DSL', 'InternetService_Fiber optic', 'InternetService_No',
+            'OnlineSecurity_No', 'OnlineSecurity_No internet service', 'OnlineSecurity_Yes',
+            'OnlineBackup_No', 'OnlineBackup_No internet service', 'OnlineBackup_Yes',
+            'DeviceProtection_No', 'DeviceProtection_No internet service', 'DeviceProtection_Yes',
+            'TechSupport_No', 'TechSupport_No internet service', 'TechSupport_Yes',
+            'StreamingTV_No', 'StreamingTV_No internet service', 'StreamingTV_Yes',
+            'StreamingMovies_No', 'StreamingMovies_No internet service', 'StreamingMovies_Yes',
+            'Contract_Month-to-month', 'Contract_One year', 'Contract_Two year',
+            'PaperlessBilling_No', 'PaperlessBilling_Yes',
+            'PaymentMethod_Bank transfer (automatic)', 'PaymentMethod_Credit card (automatic)',
+            'PaymentMethod_Electronic check', 'PaymentMethod_Mailed check'
+        ]
+        
+        # Add missing features with zeros
+        for feature in expected_features:
+            if feature not in X.columns:
+                X[feature] = 0
+                logger.debug(f"Added missing model feature: {feature} = 0")
+        
+        # Remove extra features not in expected list
+        extra_features = [col for col in X.columns if col not in expected_features]
+        if extra_features:
+            logger.info(f"Removing {len(extra_features)} extra features not in model: {extra_features[:5]}...")
+            X = X[expected_features]
+        
+        # Ensure correct order (model expects specific order)
+        X = X[expected_features]
+        
+        logger.info(f"Final feature count: {X.shape[1]} (expected: {len(expected_features)})")
         
         # Scale features
         X_scaled = self.scaler.fit_transform(X)

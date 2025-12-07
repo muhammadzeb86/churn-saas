@@ -77,8 +77,9 @@ Build a production-ready ML pipeline that:
 - ⏳ Email confirmation pending (non-blocking, can be done later)
 
 **⏳ Next Priority:**
-- ✅ Task 1.4: CSV Templates - **SKIPPED** (December 7, 2025) - Replaced with static sample CSVs in Task 1.5
-- ❌ No CSV preprocessing (assumes fixed column structure) → **Task 1.5 in progress**
+- ✅ Task 1.4: CSV Templates - **SKIPPED** (December 7, 2025)
+- ✅ Task 1.5: Column Mapper - **COMPLETE** (December 7, 2025)
+- ⏳ Task 1.7: Train SaaS-Specific Model - **PLANNED** (Permanent solution, 23 hours)
 - ❌ Missing feature validation → **Task 1.6 planned**
 - ❌ No data quality reporting → **Task 1.6 planned**
 - ❌ No visual dashboard (required for MVP launch)
