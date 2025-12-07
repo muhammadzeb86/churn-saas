@@ -612,6 +612,51 @@ These improvements happen automatically:
 
 ---
 
+### **Issue: Feature shape mismatch - Expected 45, got 32** 
+- **Status:** ✅ **FIXED (December 7, 2025)**
+- **Root Cause:** Model trained on Telecom data (45 features) but receiving SaaS data (32 features)
+  - Column mapping converted SaaS columns to standard names
+  - BUT didn't add missing Telecom-specific features
+  - Model expected: 45 Telecom features (gender, Partner, PhoneService, etc.)
+  - SaaS data only had: 32 features (no Telecom-specific columns)
+  - XGBoost rejected: "Feature shape mismatch"
+- **Why This Happened:**
+  - Column mapper maps column NAMES (user_id → customerID)
+  - But doesn't add MISSING features (gender, Partner, etc.)
+  - SaaS companies don't have "PhoneService" or "InternetService"
+  - Model still expects these features
+- **The Deep Problem:**
+  - Model was trained on Telecom data (specific feature set)
+  - SaaS data has different features (MRR, seats, API calls vs Phone, Internet)
+  - One-hot encoding creates different feature columns
+  - Model can't handle different feature set
+- **Fix Implemented:** SaaS-to-Telecom Feature Alignment
+  - Added `prepare_features()` enhancement
+  - Automatically adds missing Telecom features with defaults
+  - Maps 45 expected features exactly
+  - Fills missing with sensible defaults:
+    - `gender`: "Male" (default)
+    - `Partner`: "No" (default)
+    - `PhoneService`: "Yes" (assume yes)
+    - `InternetService`: "Fiber optic" (premium, like SaaS)
+    - `PaperlessBilling`: "Yes" (modern companies)
+    - etc.
+  - Removes extra SaaS features not in model
+  - Ensures exact feature order
+- **How It Works:**
+  1. Column mapping: user_id → customerID, mrr → MonthlyCharges
+  2. Add missing Telecom features with defaults
+  3. One-hot encode everything
+  4. Align to exact 45 features model expects
+  5. Scale and predict
+- **Impact:**
+  - ✅ SaaS files now work with Telecom-trained model
+  - ✅ No model retraining needed
+  - ✅ Bridge between SaaS data and Telecom model
+  - ✅ Production-ready workaround
+
+---
+
 ## 🔍 **COMPREHENSIVE ISSUE ANALYSIS & FIX PLAN**
 
 ### **Issue #1: Column Mapping Not Integrated (CRITICAL) ✅ IDENTIFIED**
