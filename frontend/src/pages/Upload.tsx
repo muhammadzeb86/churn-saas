@@ -274,18 +274,18 @@ const Upload: React.FC = () => {
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => downloadSampleCSV('telecom')}
-                  className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
-                >
-                  <Download size={16} />
-                  <span>Telecom Sample</span>
-                </button>
-                <button
                   onClick={() => downloadSampleCSV('saas')}
                   className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
                 >
                   <Download size={16} />
                   <span>SaaS Sample</span>
+                </button>
+                <button
+                  onClick={() => downloadSampleCSV('telecom')}
+                  className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  <Download size={16} />
+                  <span>Telecom Sample</span>
                 </button>
               </div>
             </div>
