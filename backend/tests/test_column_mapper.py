@@ -172,24 +172,41 @@ class TestIntelligentColumnMapper:
     
     def test_confidence_scoring(self):
         """Test confidence scores are accurate."""
+        # Use different standard columns to avoid duplicate handling filtering out matches
         df = pd.DataFrame({
-            'customerID': [1],
-            'Customer ID': [2],
-            'user_id': [3],
-            'cust_id': [4],
-            'customar_id': [5]
+            'customerID': [1],  # Exact match (100%)
+            'Customer ID': [2],  # Normalized match (100%)
+            'user_id': [3],  # Alias match (95%)
+            'cust_id': [4],  # Partial match (70-90%)
+            'customar_id': [5]  # Fuzzy match (75-100%)
         })
         
         mapper = IntelligentColumnMapper(industry='telecom')
         report = mapper.map_columns(df)
         
-        matches_sorted = sorted(report.matches, key=lambda m: m.confidence, reverse=True)
+        # All should map to customerID, but with different strategies/confidence
+        # After duplicate handling, we should have at least one match
+        assert len(report.matches) >= 1
         
-        # First should be 100% (exact)
+        # The best match should be 100% (exact)
+        matches_sorted = sorted(report.matches, key=lambda m: m.confidence, reverse=True)
         assert matches_sorted[0].confidence == 100.0
         
-        # Should have varying confidence levels
-        assert any(m.confidence < 100 for m in matches_sorted)
+        # Test confidence scoring with different standard columns
+        df2 = pd.DataFrame({
+            'customerID': [1],  # Exact (100%)
+            'tenure': [12],  # Exact (100%)
+            'mrr': [50],  # Alias (95%)
+            'monthly_fee': [60],  # Partial (70-90%)
+            'toal_charges': [600]  # Fuzzy (75-100%)
+        })
+        
+        report2 = mapper.map_columns(df2)
+        
+        # Should have matches with varying confidence
+        confidences = [m.confidence for m in report2.matches]
+        assert max(confidences) == 100.0  # At least one exact match
+        assert min(confidences) < 100.0  # At least one non-exact match
     
     def test_apply_mapping_success(self):
         """Test applying successful mapping."""

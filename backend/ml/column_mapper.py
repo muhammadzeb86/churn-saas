@@ -165,6 +165,8 @@ class ColumnAliases:
         'cust_id', 'custid', 'cust',
         # International
         'customer_ref', 'customer_reference',
+        # French/International
+        'identifiant_client', 'id_client',
         # Database conventions
         'id', 'pk', 'primary_key',
         # Common typos
@@ -177,6 +179,7 @@ class ColumnAliases:
         'tenure', 'tenure_months',
         # Months-based
         'months', 'months_active', 'months_subscribed', 'months_as_customer',
+        'months_since_creation', 'months_since_signup', 'months_since_start',
         'active_months', 'subscription_months', 'member_months',
         # Account age
         'account_age', 'account_age_months', 'accountage',
@@ -546,7 +549,25 @@ class IntelligentColumnMapper:
     
     def _filter_empty_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove columns that are entirely empty."""
-        non_empty_cols = [col for col in df.columns if df[col].notna().any()]
+        non_empty_cols = []
+        
+        for col in df.columns:
+            try:
+                # Handle duplicate column names (returns DataFrame)
+                col_data = df[col]
+                if isinstance(col_data, pd.DataFrame):
+                    # If duplicate columns, check if any column has non-null data
+                    has_data = col_data.notna().any().any()
+                else:
+                    # Single column (Series)
+                    has_data = col_data.notna().any()
+                
+                if has_data:
+                    non_empty_cols.append(col)
+            except Exception as e:
+                logger.warning(f"Error checking column '{col}' for empty data: {e}")
+                # Keep column if we can't determine if it's empty
+                non_empty_cols.append(col)
         
         if len(non_empty_cols) < len(df.columns):
             removed = len(df.columns) - len(non_empty_cols)
