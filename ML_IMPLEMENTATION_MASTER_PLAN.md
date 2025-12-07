@@ -79,17 +79,27 @@ Build a production-ready ML pipeline that:
 **⏳ Next Priority:**
 - ✅ Task 1.4: CSV Templates - **SKIPPED** (December 7, 2025)
 - ✅ Task 1.5: Column Mapper - **COMPLETE** (December 7, 2025)
-- 🎯 Task 1.7: SaaS Baseline + Data Collection - **IMPLEMENTING NOW** (4 hours, pragmatic solution after DeepSeek critique)
-- ⏸️ Task 1.6: Feature Validation - **ON HOLD** (after real data collection)
-- ❌ No visual dashboard (required for MVP launch)
+- ✅ Task 1.7: SaaS Baseline + Data Collection - **COMPLETE** (December 7, 2025)
+- 🎯 Task 1.6: Feature Validator - **NEXT** (6 hours)
+- 🎯 Task 1.9: SHAP Explainability - **PLANNED** (6 hours) ⭐ KEY DIFFERENTIATOR
+- 🎯 Task 1.10: Remove PowerBI - **PLANNED** (0.5 hours)
+- 📋 **STRATEGIC APPROACH:** Complete Phase 1 → Phase 2 → Phase 4 → Phase 3 (Option B)
 
-### **Updated Timeline (Phases 1-4)**
-- **Phase 1:** Week 1 (46 hours) - Get predictions working + SHAP explainability + Remove PowerBI
-- **Phase 2:** Week 2 (32 hours) - Production hardening
-- **Phase 3:** Week 3-4 (24 hours) - Scale & optimize
-- **Phase 3.5:** Week 4-5 (20 hours) - Infrastructure hardening with Terraform (REQUIRED BEFORE PHASE 4)
-- **Phase 4:** Week 6-8 (80 hours) - Basic visualizations for MVP launch
-- **Total:** 202 hours over 8 weeks
+### **Updated Timeline (Phases 1-4) - OPTION B APPROACH**
+**Strategic Decision (December 7, 2025):** Complete Phase 2 before Phase 4 for production stability
+
+- **Phase 1:** Week 1 (12.5 hours remaining) - Finish Task 1.6, 1.9, 1.10
+- **Phase 2:** Week 2 (32 hours) - Production hardening (monitoring, tests, DB optimization)
+- **Phase 3.5:** ✅ **COMPLETE** (December 2, 2025) - Infrastructure hardening with Terraform
+- **Phase 4:** Week 3-5 (80 hours) - Basic visualizations for MVP launch
+- **Phase 3:** Week 6 (24 hours) - Scale & optimize (auto-scaling, memory optimization)
+- **Total:** ~148.5 hours remaining over 6 weeks
+
+**Benefits of Option B:**
+- ✅ Production-stable backend before customer-facing features
+- ✅ Comprehensive testing prevents regressions
+- ✅ Database optimization prevents scale issues
+- ✅ Solid foundation for Phase 4 dashboard
 
 ### **MVP Launch Readiness**
 After Phase 4 completion, ready to launch with **2-tier pricing: $79 Starter / $149 Professional** with 14-day free trial.
