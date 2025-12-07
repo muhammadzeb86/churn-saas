@@ -1,7 +1,7 @@
 """add ml_training_data table for real data collection
 
 Revision ID: add_ml_training_data
-Revises: add_sqs_metadata_to_predictions
+Revises: add_sqs_metadata
 Create Date: 2025-12-07 21:30:00.000000
 
 This table stores predictions and actual churn outcomes for future ML model training.
@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_ml_training_data'
-down_revision: Union[str, None] = 'add_sqs_metadata_to_predictions'
+down_revision: Union[str, None] = 'add_sqs_metadata'  # Correctly points to the revision ID (not filename)
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
