@@ -151,7 +151,7 @@ class ColumnAliases:
         # Exact variations
         'customerid', 'customer_id', 'customer id',
         # User-based
-        'userid', 'user_id', 'user id', 'user',
+        'userid', 'user_id', 'user id', 'user', 'user_name', 'username',
         # Account-based
         'accountid', 'account_id', 'account id', 'account',
         'accountnumber', 'account_number', 'account number',
