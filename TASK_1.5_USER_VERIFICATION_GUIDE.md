@@ -5,7 +5,7 @@
 **Step-by-Step Checklist**
 
 **Last Updated:** December 7, 2025  
-**Status:** ✅ CSV Download Fix Applied, Terraform Detection Enhanced
+**Status:** ✅ CSV Download Fix Applied (Commit cd63ecf), Terraform Already Deployed
 
 ---
 
@@ -413,18 +413,27 @@ These improvements happen automatically:
 ## 📝 **TROUBLESHOOTING**
 
 ### **Issue: Sample CSV downloads as .htm file instead of .csv**
-- **Status:** ✅ FIXED (December 7, 2025)
-- **Root Cause:** FileResponse wasn't setting proper Content-Disposition headers
-- **Fix Applied:** Changed to Response with explicit headers:
-  - `Content-Type: text/csv; charset=utf-8`
-  - `Content-Disposition: attachment; filename="retainwise_sample_{industry}.csv"`
-- **Verification:** Download should now save as .csv file
+- **Status:** ⏳ FIXING (December 7, 2025 - Second iteration)
+- **Root Cause Analysis:**
+  1. First attempt: FileResponse didn't set Content-Disposition
+  2. Second attempt: Response had conflicting headers (media_type + Content-Type)
+  3. Browser interpreted response as HTML due to header ambiguity
+- **Final Fix:** Using StreamingResponse with proper configuration:
+  - Single `media_type="text/csv; charset=utf-8"` (no duplicate headers)
+  - Explicit `Content-Disposition: attachment` (forces download)
+  - `Cache-Control: no-cache` (prevents browser caching old response)
+- **Why This Works:**
+  - StreamingResponse sends file in chunks (efficient for large files)
+  - No conflicting Content-Type headers
+  - Explicit attachment disposition tells browser to download, not display
+- **Deployment:** ⏳ Pending (next commit)
 
 ### **Issue: Terraform Plan/Apply skipped in CI/CD**
-- **Status:** ✅ FIXED (December 7, 2025)
+- **Status:** ✅ VERIFIED - All Terraform resources already deployed
 - **Root Cause:** Git diff check only looked at last commit (HEAD~1)
-- **Fix Applied:** Now checks last 10 commits for infra changes
-- **Verification:** Terraform should run if infra/ files changed in recent commits
+- **Fix Applied:** Enhanced detection to check last 10 commits (for future deployments)
+- **Current Status:** All CloudWatch alarms (10) and SNS topics already deployed
+- **Verification:** Terraform state shows all resources present and up-to-date
 
 ### **Issue: Sample CSV buttons not visible**
 - **Check:** Is frontend deployed? Check browser console for errors

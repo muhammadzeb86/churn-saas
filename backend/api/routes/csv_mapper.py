@@ -12,7 +12,7 @@ Version: 2.0 (Enhanced with security fixes)
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import Dict, Any
 import pandas as pd
 import io
@@ -143,18 +143,18 @@ async def download_sample_csv(industry: str):
     
     logger.info(f"Sample CSV download: industry={industry}")
     
-    # Read file content and return with explicit CSV headers
-    from fastapi.responses import Response
+    # Use StreamingResponse for CSV download with explicit headers
+    # This ensures proper Content-Type and forces browser to download
+    def iter_file():
+        with open(sample_file, 'rb') as f:
+            yield from f
     
-    with open(sample_file, 'rb') as f:
-        content = f.read()
-    
-    return Response(
-        content=content,
-        media_type="text/csv",
+    return StreamingResponse(
+        iter_file(),
+        media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="retainwise_sample_{industry}.csv"',
-            "Content-Type": "text/csv; charset=utf-8"
+            "Cache-Control": "no-cache"
         }
     )
 
