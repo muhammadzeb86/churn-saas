@@ -364,7 +364,7 @@ class IntelligentColumnMapper:
     Multi-strategy column mapper with confidence scoring.
     
     Usage:
-        mapper = IntelligentColumnMapper(industry='telecom')
+        mapper = IntelligentColumnMapper(industry='saas')
         report = mapper.map_columns(user_df)
         
         if report.success:
@@ -385,7 +385,7 @@ class IntelligentColumnMapper:
     MAX_COLUMN_NAME_LENGTH = 255
     MAX_ROWS_FOR_ANALYSIS = 10000
     
-    def __init__(self, industry: str = 'telecom'):
+    def __init__(self, industry: str = 'saas'):
         """
         Initialize mapper for specific industry.
         
@@ -1165,7 +1165,7 @@ def map_csv_columns(df: pd.DataFrame, industry: str = 'telecom') -> Tuple[pd.Dat
         ValueError: If required columns are missing
     
     Usage:
-        df_mapped, report = map_csv_columns(user_df, industry='telecom')
+        df_mapped, report = map_csv_columns(user_df, industry='saas')
         if report.success:
             # Process df_mapped
         else:

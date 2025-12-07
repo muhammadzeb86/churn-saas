@@ -5,7 +5,7 @@
 **Last Updated:** November 1, 2025 (Updated for Phase 4 + Pricing)  
 **Status:** ✅ Approved - Ready for Implementation (Phases 1-4)  
 **Purpose:** Complete ML preprocessing & pipeline implementation guide  
-**Target Market:** SaaS B2B/B2C companies  
+**Target Market:** SaaS B2B/B2C companies (Primary), Telecom (Secondary)  
 **MVP Pricing:** $149/month (Professional tier)
 
 ---
@@ -42,9 +42,15 @@ Build a production-ready ML pipeline that:
 6. ✅ Maintains highway-grade code quality
 
 ### **Target Market**
-- **Primary:** SaaS B2B companies (50-1000 customers)
-- **Secondary:** SaaS B2C companies with subscription models
-- **NOT targeting:** Telecom, E-commerce, Traditional retail
+- **Primary:** SaaS B2B companies (50-1000 customers) - **MAIN FOCUS** 🎯
+- **Secondary:** Telecom companies (for broader market coverage)
+- **NOT targeting:** E-commerce, Traditional retail
+
+**Strategic Focus Shift (December 7, 2025):**
+- ML model optimized for SaaS companies (primary use case)
+- Telecom support maintained for market expansion
+- Column mapper defaults to SaaS industry
+- Sample CSVs prioritize SaaS format
 
 ### **Current Status: PHASE 3.5 STAGES 1 & 2 COMPLETE**
 **✅ Completed:**

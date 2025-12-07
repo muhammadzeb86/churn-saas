@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/csv", tags=["csv-mapping"])
 @router.post("/preview-mapping")
 async def preview_column_mapping(
     file: UploadFile = File(...),
-    industry: str = Query('telecom', description="Industry type (telecom, saas)")
+    industry: str = Query('saas', description="Industry type (saas, telecom) - Default: saas")
 ):
     """
     Preview how columns will be mapped without actually processing the file.

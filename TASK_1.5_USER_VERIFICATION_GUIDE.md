@@ -451,7 +451,7 @@ These improvements happen automatically:
 - ✅ **Expected Result:** Users will download valid CSV files with all columns intact
 
 ### **Issue: Predictions remain QUEUED after upload (filename with spaces/parentheses)**
-- **Status:** ✅ FIXED (December 7, 2025)
+- **Status:** ✅ FIXED (December 7, 2025 - Commit 5cfed9a)
 - **Root Cause:** Filename `retainwise_sample_saas (1).csv` has spaces and parentheses
   - Browser adds ` (1)` when downloading same file twice
   - Upload endpoint doesn't sanitize filename
@@ -469,6 +469,412 @@ These improvements happen automatically:
   - No breaking changes (still accepts any filename)
   - Maintains file extension for CSV validation
   - Prevents URL encoding issues
+
+### **Issue: Prediction fails with KeyError: 'TotalCharges' (SaaS files)**
+- **Status:** 🔴 **CRITICAL - IDENTIFIED (December 7, 2025)**
+- **Root Cause:** ML prediction pipeline does NOT use column mapper
+  - User uploaded SaaS file: `retainwise_sample_saas1.csv`
+  - File has columns: `user_id`, `total_revenue`, `mrr`, etc. (SaaS format)
+  - Worker loads CSV and calls `predictor.predict(input_df)` WITHOUT column mapping
+  - Predictor's `clean_data()` expects hardcoded Telecom columns: `TotalCharges`, `customerID`, etc.
+  - **KeyError: 'TotalCharges'** → Prediction fails
+- **Strategic Context:** SaaS is now PRIMARY focus, but predictor still expects Telecom columns
+  - This makes the issue even more critical - our primary market can't use the system!
+  - Fix must prioritize SaaS column mapping and standardization
+- **Why This Happened:**
+  - Column mapper (Task 1.5) was created but never integrated into prediction pipeline
+  - Predictor is hardcoded for Telecom industry columns
+  - No industry detection or column mapping in upload/prediction flow
+  - Previous tests used Telecom files (matched hardcoded columns)
+- **Impact:**
+  - ❌ SaaS files cannot be processed
+  - ❌ Files with non-standard column names fail
+  - ❌ Our own sample files don't work!
+- **Fix Required (Comprehensive Plan):**
+  1. **Integrate column mapper into prediction service** (CRITICAL)
+     - Apply column mapping BEFORE calling `predictor.predict()`
+     - Map user columns to standard columns
+     - Handle missing columns gracefully
+  2. **Update ML predictor to handle missing columns** (IMPORTANT)
+     - Remove hardcoded column references
+     - Check for column existence before processing
+     - Handle both Telecom and SaaS industries
+  3. **Industry detection** (NICE TO HAVE)
+     - Auto-detect from filename or column names
+     - Store industry in database
+     - Allow user selection
+- **Files to Modify:**
+  - `backend/services/prediction_service.py` - Add column mapping integration
+  - `backend/ml/predict.py` - Handle missing columns gracefully
+  - `backend/models.py` - Add industry field (optional)
+- **Testing Required:**
+  - Test with Telecom files (baseline)
+  - Test with SaaS files (new)
+  - Test with renamed columns
+  - Test with missing required columns
+- **Status:** ⏳ **PLAN READY - Waiting for deployment 5cfed9a to complete before implementing**
+
+---
+
+## 🔍 **COMPREHENSIVE ISSUE ANALYSIS & FIX PLAN**
+
+### **Issue #1: Column Mapping Not Integrated (CRITICAL) ✅ IDENTIFIED**
+
+**Problem:**
+- Column mapper exists but is NOT used in prediction pipeline
+- Predictor expects hardcoded Telecom columns
+- SaaS files fail with KeyError
+
+**Fix:**
+- Integrate column mapper into `prediction_service.py`
+- Apply mapping BEFORE calling `predictor.predict()`
+- Map all user columns to standard format
+
+**Files:** `backend/services/prediction_service.py`
+
+---
+
+### **Issue #2: Hardcoded Column References (CRITICAL) ✅ IDENTIFIED**
+
+**Problem:**
+- `clean_data()` hardcodes: `TotalCharges`, `SeniorCitizen`, `tenure`, etc.
+- `prepare_features()` expects specific columns
+- No flexibility for different industries
+
+**Fix:**
+- Add existence checks before accessing columns
+- Handle missing columns gracefully (skip or fill with defaults)
+- Make predictor industry-agnostic
+
+**Files:** `backend/ml/predict.py`
+
+**Hardcoded References Found:**
+- Line 60: `df['TotalCharges']` - No existence check
+- Line 66: `df['SeniorCitizen']` - No existence check
+- Line 67: `df['tenure']` - No existence check
+- Lines 70-75: Categorical columns - No existence checks
+- Line 143: `df['customerID']` - Has check ✅
+
+---
+
+### **Issue #3: Industry Detection Missing (IMPORTANT) ⚠️ POTENTIAL**
+
+**Problem:**
+- No way to detect if file is Telecom or SaaS
+- Defaults to Telecom (wrong for SaaS files)
+- Column mapper needs correct industry
+
+**Fix Options:**
+1. **Auto-detect from filename** (simple)
+   - Check for 'telecom' or 'saas' in filename
+   - Default to 'telecom' if unclear
+2. **Auto-detect from columns** (better)
+   - Use column mapper to detect industry
+   - Check which industry's columns match better
+3. **User selection** (best UX)
+   - Add industry dropdown in upload UI
+   - Store in database
+
+**Recommendation:** Start with Option 1 (filename-based), add Option 3 later
+
+**Files:** `backend/services/prediction_service.py`, `backend/api/routes/upload.py`
+
+---
+
+### **Issue #4: Data Type Mismatches (MEDIUM) ⚠️ POTENTIAL**
+
+**Problem:**
+- Column mapper converts data types (days→months, cents→dollars)
+- But predictor might expect original types
+- Type mismatches could cause errors
+
+**Fix:**
+- Verify data types after mapping
+- Ensure types match model expectations
+- Add type validation
+
+**Files:** `backend/ml/predict.py` (after column mapping)
+
+---
+
+### **Issue #5: Missing Optional Columns (MEDIUM) ⚠️ POTENTIAL**
+
+**Problem:**
+- Model might need optional columns for feature engineering
+- Missing optional columns might cause errors
+- No graceful handling
+
+**Fix:**
+- Check which columns are actually needed by model
+- Fill missing optional columns with defaults
+- Log warnings for missing optional columns
+
+**Files:** `backend/ml/predict.py`
+
+---
+
+### **Issue #6: Feature Engineering Dependencies (LOW) ⚠️ POTENTIAL**
+
+**Problem:**
+- `prepare_features()` uses `pd.get_dummies()` which depends on categorical columns
+- Missing categorical columns might cause issues
+- Feature names might not match model expectations
+
+**Fix:**
+- Ensure all categorical columns are present (or filled)
+- Verify feature names match model
+- Handle feature mismatches gracefully
+
+**Files:** `backend/ml/predict.py`
+
+---
+
+### **Issue #7: Model Compatibility (LOW) ⚠️ POTENTIAL**
+
+**Problem:**
+- Model was trained on Telecom data
+- Will it work with mapped SaaS data?
+- Feature importance might be wrong
+
+**Fix:**
+- Test with mapped SaaS data
+- Verify model accuracy
+- Consider industry-specific models (future)
+
+**Files:** Testing required
+
+---
+
+## 📋 **IMPLEMENTATION PLAN (Priority Order)**
+
+### **Phase 1: Critical Fixes (Must Fix Immediately)**
+
+#### **Fix 1.1: Integrate Column Mapper**
+**File:** `backend/services/prediction_service.py`
+**Location:** After line 163 (CSV parsing), before line 183 (prediction)
+
+**Code:**
+```python
+# After: input_df = pd.read_csv(temp_input_file.name)
+
+# Import column mapper
+from backend.ml.column_mapper import IntelligentColumnMapper
+
+# Detect industry (simple filename-based for now)
+# SaaS is PRIMARY focus, default to 'saas'
+industry = 'saas'  # Default (SaaS is primary)
+if 'telecom' in s3_key.lower():
+    industry = 'telecom'
+elif 'saas' in s3_key.lower():
+    industry = 'saas'
+
+# Apply column mapping
+mapper = IntelligentColumnMapper(industry=industry)
+mapping_report = mapper.map_columns(input_df)
+
+if not mapping_report.success:
+    missing = ', '.join(mapping_report.missing_required)
+    error_msg = f"Missing required columns: {missing}"
+    raise ValueError(error_msg)
+
+# Apply mapping to DataFrame
+mapped_df = mapper.apply_mapping(input_df, mapping_report)
+
+# Use mapped_df for prediction (instead of input_df)
+```
+
+**Change line 183:**
+```python
+predictions_df = predictor.predict(mapped_df)  # Changed from input_df
+```
+
+---
+
+#### **Fix 1.2: Handle Missing Columns in Predictor**
+**File:** `backend/ml/predict.py`
+**Location:** `clean_data()` method (lines 53-79)
+
+**Changes:**
+```python
+def clean_data(self, df):
+    """Clean and preprocess the data."""
+    logger.info("Cleaning and preprocessing data...")
+    
+    df = df.copy()
+    
+    # Clean TotalCharges (if present)
+    if 'TotalCharges' in df.columns:
+        df['TotalCharges'] = df['TotalCharges'].replace(r'^\s*$', np.nan, regex=True)
+        df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+        total_charges_median = df['TotalCharges'].median()
+        df['TotalCharges'].fillna(total_charges_median, inplace=True)
+    else:
+        logger.warning("TotalCharges column not found, skipping")
+    
+    # Convert dtypes (only if columns exist)
+    if 'SeniorCitizen' in df.columns:
+        df['SeniorCitizen'] = df['SeniorCitizen'].astype(np.int8)
+    else:
+        logger.warning("SeniorCitizen column not found, skipping")
+    
+    if 'tenure' in df.columns:
+        df['tenure'] = df['tenure'].astype(np.int16)
+    else:
+        raise ValueError("Required column 'tenure' is missing")
+    
+    # Convert categorical columns (only if present)
+    categorical_cols = [
+        'gender', 'Partner', 'Dependents', 'PhoneService', 'MultipleLines',
+        'InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+        'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract',
+        'PaperlessBilling', 'PaymentMethod'
+    ]
+    for col in categorical_cols:
+        if col in df.columns:
+            df[col] = df[col].astype('category')
+        else:
+            logger.warning(f"Categorical column '{col}' not found, skipping")
+    
+    return df
+```
+
+---
+
+### **Phase 2: Important Fixes (Should Fix Soon)**
+
+#### **Fix 2.1: Better Industry Detection**
+- Auto-detect from column names (use column mapper)
+- Store industry in Upload record
+- Add industry field to database
+
+#### **Fix 2.2: Enhanced Error Messages**
+- Clear error messages for missing columns
+- Suggestions for fixing column names
+- User-friendly error responses
+
+---
+
+### **Phase 3: Nice to Have (Future Enhancements)**
+
+#### **Fix 3.1: Industry-Specific Models**
+- Train separate models for Telecom and SaaS
+- Better accuracy for each industry
+- Requires retraining
+
+#### **Fix 3.2: Data Quality Validation**
+- Validate data ranges
+- Check for outliers
+- Handle missing values better
+
+---
+
+## ✅ **TESTING PLAN**
+
+### **Test Case 1: Telecom File (Baseline)**
+- Upload `sample_telecom.csv`
+- Verify column mapping works
+- Verify prediction succeeds
+- **Expected:** ✅ Works (no changes needed)
+
+### **Test Case 2: SaaS File (New)**
+- Upload `sample_saas.csv`
+- Verify columns map correctly (user_id → customerID, etc.)
+- Verify prediction succeeds
+- **Expected:** ✅ Works after fix
+
+### **Test Case 3: SaaS File with Renamed Columns**
+- Upload SaaS file with `user_id` (should map to `customerID`)
+- Verify mapping works
+- Verify prediction succeeds
+- **Expected:** ✅ Works after fix
+
+### **Test Case 4: Missing Required Columns**
+- Upload file missing `customerID` or `tenure`
+- Verify clear error message
+- Verify prediction status = FAILED
+- **Expected:** ✅ Clear error message
+
+### **Test Case 5: File with Spaces/Parentheses**
+- Upload `file (1).csv`
+- Verify filename sanitization works
+- Verify column mapping works
+- Verify prediction succeeds
+- **Expected:** ✅ Works (filename fix + column mapping)
+
+---
+
+## 📊 **EXPECTED OUTCOMES**
+
+### **Before Fixes:**
+- ❌ SaaS files fail with KeyError
+- ✅ Telecom files work
+- ❌ No column mapping
+- ❌ Hardcoded column references
+- ❌ Generic error messages
+
+### **After Fixes:**
+- ✅ SaaS files process successfully
+- ✅ Telecom files continue to work
+- ✅ Column mapping applied automatically
+- ✅ Missing columns handled gracefully
+- ✅ Clear error messages
+- ✅ Industry detection works
+
+---
+
+## ⚠️ **RISKS & MITIGATION**
+
+### **Risk 1: Model Incompatibility**
+- **Risk:** Model trained on Telecom might not work with mapped SaaS
+- **Mitigation:** Column mapper standardizes to Telecom format, should work
+- **Testing:** Test with real SaaS data after fix
+
+### **Risk 2: Performance Impact**
+- **Risk:** Column mapping adds processing time
+- **Mitigation:** Mapping is fast (<100ms for 10K rows), acceptable
+- **Monitoring:** Track prediction duration metrics
+
+### **Risk 3: Data Quality Issues**
+- **Risk:** Mapped data might have quality issues
+- **Mitigation:** Column mapper handles conversions, add validation
+- **Testing:** Validate data quality after mapping
+
+---
+
+## 🚀 **DEPLOYMENT STRATEGY**
+
+1. ⏳ **Wait for deployment 5cfed9a to complete** (filename sanitization)
+2. ✅ **Test filename sanitization fix**
+3. 🔧 **Implement Phase 1 fixes** (column mapping + missing column handling)
+4. ✅ **Test with both Telecom and SaaS files**
+5. 🚀 **Deploy fixes**
+6. 📊 **Monitor for errors**
+
+---
+
+## 📝 **FILES TO MODIFY**
+
+1. **`backend/services/prediction_service.py`**
+   - Add column mapping integration (after CSV parsing)
+   - Add industry detection (filename-based)
+   - Update error handling
+
+2. **`backend/ml/predict.py`**
+   - Add existence checks in `clean_data()`
+   - Handle missing columns gracefully
+   - Add logging for missing columns
+
+3. **`backend/models.py`** (Optional - Phase 2)
+   - Add `industry` field to Upload model
+   - Database migration
+
+4. **`backend/api/routes/upload.py`** (Optional - Phase 2)
+   - Industry detection during upload
+   - Store industry in database
+
+---
+
+**Status:** 📋 **COMPREHENSIVE PLAN READY - Waiting for deployment 5cfed9a**
 
 ### **Issue: Terraform Plan/Apply skipped in CI/CD**
 - **Status:** ✅ VERIFIED - All Terraform resources already deployed
