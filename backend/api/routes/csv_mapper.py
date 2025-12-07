@@ -143,18 +143,24 @@ async def download_sample_csv(industry: str):
     
     logger.info(f"Sample CSV download: industry={industry}")
     
-    # Use StreamingResponse for CSV download with explicit headers
-    # This ensures proper Content-Type and forces browser to download
-    def iter_file():
-        with open(sample_file, 'rb') as f:
-            yield from f
+    # Read file content synchronously (small files, <10KB)
+    # This ensures the entire file is sent with proper headers
+    with open(sample_file, 'rb') as f:
+        content = f.read()
     
-    return StreamingResponse(
-        iter_file(),
-        media_type="text/csv; charset=utf-8",
+    # Use Response with explicit headers for maximum compatibility
+    # This approach works reliably for both direct links and JavaScript fetch
+    from fastapi.responses import Response
+    
+    return Response(
+        content=content,
+        media_type="text/csv",
         headers={
             "Content-Disposition": f'attachment; filename="retainwise_sample_{industry}.csv"',
-            "Cache-Control": "no-cache"
+            "Content-Type": "text/csv; charset=utf-8",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
         }
     )
 

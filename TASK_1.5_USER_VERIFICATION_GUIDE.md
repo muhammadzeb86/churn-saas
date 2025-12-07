@@ -413,20 +413,31 @@ These improvements happen automatically:
 ## 📝 **TROUBLESHOOTING**
 
 ### **Issue: Sample CSV downloads as .htm file instead of .csv**
-- **Status:** ⏳ FIXING (December 7, 2025 - Second iteration)
+- **Status:** ✅ FIXED (December 7, 2025 - Third iteration - Comprehensive fix)
 - **Root Cause Analysis:**
-  1. First attempt: FileResponse didn't set Content-Disposition
-  2. Second attempt: Response had conflicting headers (media_type + Content-Type)
-  3. Browser interpreted response as HTML due to header ambiguity
-- **Final Fix:** Using StreamingResponse with proper configuration:
-  - Single `media_type="text/csv; charset=utf-8"` (no duplicate headers)
-  - Explicit `Content-Disposition: attachment` (forces download)
-  - `Cache-Control: no-cache` (prevents browser caching old response)
+  1. **First attempt (FileResponse):** Didn't set Content-Disposition properly
+  2. **Second attempt (Response):** Conflicting headers (media_type + Content-Type)
+  3. **Third attempt (StreamingResponse):** Still failed because...
+  4. **REAL ROOT CAUSE:** Frontend used `<a href download>` which doesn't work for cross-origin URLs
+     - Browser ignores `download` attribute for cross-origin links (CORS)
+     - Browser makes normal GET request and interprets response
+     - If headers aren't perfect, browser defaults to HTML interpretation
+- **Comprehensive Fix (Both Frontend + Backend):**
+  - **Frontend:** Changed from `<a href download>` to JavaScript `fetch()` + blob download
+    - Works reliably for cross-origin URLs
+    - Creates blob URL and triggers download programmatically
+    - Handles errors gracefully with toast notifications
+  - **Backend:** Simplified to Response with explicit headers:
+    - Single `media_type="text/csv"` (no conflicts)
+    - Explicit `Content-Type: text/csv; charset=utf-8` in headers
+    - Strong cache control headers (no-cache, no-store, must-revalidate)
+    - Proper `Content-Disposition: attachment` with filename
 - **Why This Works:**
-  - StreamingResponse sends file in chunks (efficient for large files)
-  - No conflicting Content-Type headers
-  - Explicit attachment disposition tells browser to download, not display
-- **Deployment:** ⏳ Pending (next commit)
+  - JavaScript fetch works for cross-origin requests (CORS)
+  - Blob download triggers browser's native download mechanism
+  - Backend headers are clear and unambiguous
+  - No browser caching issues
+- **Deployment:** ⏳ Pending (commit ready)
 
 ### **Issue: Terraform Plan/Apply skipped in CI/CD**
 - **Status:** ✅ VERIFIED - All Terraform resources already deployed

@@ -116,6 +116,52 @@ const Upload: React.FC = () => {
     }
   };
 
+  const downloadSampleCSV = async (industry: 'telecom' | 'saas') => {
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || '';
+      const url = `${apiUrl}/api/csv/sample-csv/${industry}`;
+      
+      // Fetch the file with proper headers
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/csv',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.statusText}`);
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Create a blob URL and trigger download
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `retainwise_sample_${industry}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      
+      toast({
+        title: 'Download Started',
+        description: `Sample ${industry} CSV is downloading...`,
+      });
+    } catch (err: any) {
+      console.error('Download error:', err);
+      toast({
+        title: 'Download Failed',
+        description: err.message || 'Failed to download sample CSV. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const clerkId = user?.id;
   const isDisabled = !file || uploading || !clerkId;
 
@@ -224,22 +270,20 @@ const Upload: React.FC = () => {
                 Download a sample dataset to understand the format and test predictions instantly.
               </p>
               <div className="flex flex-wrap gap-2">
-                <a
-                  href={`${process.env.REACT_APP_API_URL}/api/csv/sample-csv/telecom`}
-                  download
+                <button
+                  onClick={() => downloadSampleCSV('telecom')}
                   className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
                 >
                   <Download size={16} />
                   <span>Telecom Sample</span>
-                </a>
-                <a
-                  href={`${process.env.REACT_APP_API_URL}/api/csv/sample-csv/saas`}
-                  download
+                </button>
+                <button
+                  onClick={() => downloadSampleCSV('saas')}
                   className="inline-flex items-center space-x-2 px-4 py-2 text-sm font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
                 >
                   <Download size={16} />
                   <span>SaaS Sample</span>
-                </a>
+                </button>
               </div>
             </div>
           </div>
