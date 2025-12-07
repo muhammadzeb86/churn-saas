@@ -450,6 +450,26 @@ These improvements happen automatically:
 - ✅ **File Content:** Pure CSV data, no HTML, proper UTF-8 encoding
 - ✅ **Expected Result:** Users will download valid CSV files with all columns intact
 
+### **Issue: Predictions remain QUEUED after upload (filename with spaces/parentheses)**
+- **Status:** ✅ FIXED (December 7, 2025)
+- **Root Cause:** Filename `retainwise_sample_saas (1).csv` has spaces and parentheses
+  - Browser adds ` (1)` when downloading same file twice
+  - Upload endpoint doesn't sanitize filename
+  - S3 path becomes: `s3://bucket/uploads/user/20251207_155428-retainwise_sample_saas (1).csv`
+  - Worker's Pydantic validator rejects characters: `( ) { } < > | & ; ` $ [ ]`
+  - Prediction stuck in QUEUED (worker can't process message)
+- **Fix Applied:** Added filename sanitization in `backend/services/s3_service.py`
+  - Sanitizes filename before uploading to S3
+  - Replaces spaces with underscores
+  - Removes parentheses, brackets, and special characters
+  - Preserves file extension
+  - Example: `file (1).csv` → `file_1.csv`
+- **Why This Works:**
+  - Sanitized filenames pass worker validation
+  - No breaking changes (still accepts any filename)
+  - Maintains file extension for CSV validation
+  - Prevents URL encoding issues
+
 ### **Issue: Terraform Plan/Apply skipped in CI/CD**
 - **Status:** ✅ VERIFIED - All Terraform resources already deployed
 - **Root Cause:** Git diff check only looked at last commit (HEAD~1)

@@ -3,6 +3,7 @@ S3 Service for handling file uploads and operations
 """
 import boto3
 import os
+import re
 from datetime import datetime
 from typing import Optional, Dict, Any
 from botocore.exceptions import ClientError, NoCredentialsError
@@ -28,6 +29,50 @@ class S3Service:
             logger.warning("S3_BUCKET environment variable not set - will use local storage fallback")
             self.bucket_name = "local-storage"
     
+    @staticmethod
+    def _sanitize_filename(filename: str) -> str:
+        """
+        Sanitize filename to be S3-safe and URL-safe.
+        
+        Removes/replaces characters that could cause issues:
+        - Spaces, parentheses, brackets (common from browser downloads)
+        - Special characters rejected by worker validation
+        - Preserves file extension
+        
+        Args:
+            filename: Original filename (e.g., "file (1).csv")
+            
+        Returns:
+            Sanitized filename (e.g., "file_1.csv")
+        """
+        # Split filename and extension
+        name, ext = os.path.splitext(filename)
+        
+        # Remove/replace problematic characters
+        # Replace spaces with underscores
+        name = name.replace(' ', '_')
+        
+        # Remove characters rejected by worker validation and other problematic chars
+        # '<', '>', '|', '&', ';', '`', '$', '(', ')', '{', '}', '[', ']'
+        name = re.sub(r'[<>|&;`$(){}\[\]]', '', name)
+        
+        # Remove any remaining non-alphanumeric characters except underscore, hyphen, dot
+        name = re.sub(r'[^a-zA-Z0-9_\-.]', '_', name)
+        
+        # Collapse multiple underscores into one
+        name = re.sub(r'_+', '_', name)
+        
+        # Remove leading/trailing underscores
+        name = name.strip('_')
+        
+        # Reconstruct filename with extension
+        sanitized = f"{name}{ext}"
+        
+        if sanitized != filename:
+            logger.info(f"Sanitized filename: '{filename}' → '{sanitized}'")
+        
+        return sanitized
+    
     def upload_file_stream(self, file_content: bytes, user_id: str, filename: str) -> Dict[str, Any]:
         """
         Upload file content directly to S3 without saving to local disk
@@ -41,9 +86,12 @@ class S3Service:
             Dict containing upload result with object_key and success status
         """
         try:
+            # Sanitize filename to prevent issues with spaces, parentheses, etc.
+            sanitized_filename = self._sanitize_filename(filename)
+            
             # Generate S3 object key with timestamp
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            object_key = f"uploads/{user_id}/{timestamp}-{filename}"
+            object_key = f"uploads/{user_id}/{timestamp}-{sanitized_filename}"
             
             # Upload file content directly to S3
             self.s3_client.put_object(
@@ -95,9 +143,12 @@ class S3Service:
             Dict containing presigned URL and object key
         """
         try:
+            # Sanitize filename to prevent issues with spaces, parentheses, etc.
+            sanitized_filename = self._sanitize_filename(filename)
+            
             # Generate S3 object key
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            object_key = f"uploads/{user_id}/{timestamp}-{filename}"
+            object_key = f"uploads/{user_id}/{timestamp}-{sanitized_filename}"
             
             # Generate presigned URL for PUT operation
             presigned_url = self.s3_client.generate_presigned_url(
