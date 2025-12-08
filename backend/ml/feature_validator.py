@@ -471,12 +471,22 @@ class SaaSFeatureValidator:
         - seats_used <= seats_purchased
         - TotalCharges >= MonthlyCharges (for tenure >= 1)
         - New customers (tenure=0) should have low/null TotalCharges
+        
+        NOTE: All numeric comparisons use pd.to_numeric with errors='coerce'
+        to safely handle non-numeric or null values.
         """
         issues = []
         
         # Rule 1: Seats validation
         if {'seats_purchased', 'seats_used'}.issubset(df.columns):
-            invalid = (df['seats_used'] > df['seats_purchased'])
+            # Convert to numeric to handle any non-numeric values safely
+            seats_purchased = pd.to_numeric(df['seats_purchased'], errors='coerce')
+            seats_used = pd.to_numeric(df['seats_used'], errors='coerce')
+            
+            # Only compare where both values are valid (not NaN)
+            valid_mask = seats_purchased.notna() & seats_used.notna()
+            invalid = valid_mask & (seats_used > seats_purchased)
+            
             if invalid.any():
                 # PII-SAFE: Show row indices, not customer IDs
                 sample_indices = df[invalid].index[:3].tolist()
@@ -491,12 +501,21 @@ class SaaSFeatureValidator:
         
         # Rule 2: Total vs Monthly charges
         if {'tenure', 'TotalCharges', 'MonthlyCharges'}.issubset(df.columns):
-            mask = (
-                (df['tenure'] >= 1) &
-                (df['TotalCharges'].notna()) &
-                (df['MonthlyCharges'].notna()) &
-                (df['TotalCharges'] < df['MonthlyCharges'])
+            # Convert all to numeric to handle any non-numeric values safely
+            tenure = pd.to_numeric(df['tenure'], errors='coerce')
+            total_charges = pd.to_numeric(df['TotalCharges'], errors='coerce')
+            monthly_charges = pd.to_numeric(df['MonthlyCharges'], errors='coerce')
+            
+            # Only compare where all values are valid (not NaN)
+            valid_mask = (
+                tenure.notna() &
+                total_charges.notna() &
+                monthly_charges.notna()
             )
+            
+            # Check existing customers (tenure >= 1) with TotalCharges < MonthlyCharges
+            mask = valid_mask & (tenure >= 1) & (total_charges < monthly_charges)
+            
             if mask.any():
                 sample_indices = df[mask].index[:3].tolist()
                 issues.append(ValidationIssue(
