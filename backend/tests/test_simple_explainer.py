@@ -35,7 +35,7 @@ class TestExplainerInitialization:
     
     def test_init_with_trained_model(self):
         """Test initialization with trained model."""
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         feature_names = ['tenure', 'MonthlyCharges', 'TotalCharges', 'Contract']
         
         explainer = SimpleChurnExplainer(
@@ -49,7 +49,7 @@ class TestExplainerInitialization:
     
     def test_init_caching(self):
         """Test explainer is cached for performance."""
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         feature_names = ['tenure', 'MonthlyCharges']
         
         explainer1 = get_simple_explainer(predictor.model, feature_names)
@@ -72,7 +72,7 @@ class TestSingleExplanation:
             'Contract': ['Month-to-month']  # MTM (risk)
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -104,7 +104,7 @@ class TestSingleExplanation:
             'Contract': ['Annual']  # Annual (protective)
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -137,7 +137,7 @@ class TestBatchExplanations:
         
         churn_probs = [0.8, 0.4, 0.2, 0.5, 0.1]
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -174,7 +174,7 @@ class TestBatchExplanations:
         
         churn_probs = np.random.uniform(0.1, 0.9, n_customers).tolist()
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -219,7 +219,7 @@ class TestRiskLevelClassification:
     
     def test_risk_levels(self):
         """Test churn probability to risk level mapping."""
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=['tenure', 'MonthlyCharges']
@@ -245,7 +245,7 @@ class TestExplanationOutput:
             'Contract': ['Annual']
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -292,7 +292,7 @@ class TestNaturalLanguageSummary:
             'Contract': ['Monthly']
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -317,7 +317,7 @@ class TestNaturalLanguageSummary:
             'Contract': ['Monthly']
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -339,7 +339,7 @@ class TestErrorHandling:
     
     def test_fallback_explanation_on_error(self):
         """Test fallback explanation when generation fails."""
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=['tenure', 'MonthlyCharges']
@@ -362,7 +362,7 @@ class TestErrorHandling:
             # Missing: TotalCharges, Contract
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         # Explainer expects more features than provided
         explainer = SimpleChurnExplainer(
             model=predictor.model,
@@ -390,7 +390,7 @@ class TestEdgeCases:
             'tenure': [12]
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=['tenure']
@@ -415,7 +415,7 @@ class TestEdgeCases:
             'Contract': ['Annual']
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -440,7 +440,7 @@ class TestEdgeCases:
             'Contract': ['Monthly']
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
@@ -469,7 +469,7 @@ class TestPerformanceTargets:
             'Contract': ['Annual']
         })
         
-        predictor = RetentionPredictor(model_type='saas')
+        predictor = RetentionPredictor()
         explainer = SimpleChurnExplainer(
             model=predictor.model,
             feature_names=customer_data.columns.tolist()
