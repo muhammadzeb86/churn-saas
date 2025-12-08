@@ -300,14 +300,24 @@ class SimpleChurnExplainer:
                 current_value = values[feature_name]
                 importance = self.importances[idx] if idx < len(self.importances) else 0
                 
-                # Calculate deviation score (z-score)
-                mean = self.feature_means.get(feature_name, current_value)
-                std = self.feature_stds.get(feature_name, 1.0)
-                
-                if std > 0:
-                    z_score = abs((current_value - mean) / std)
-                else:
-                    z_score = 0
+                # Calculate deviation score (z-score) - ONLY for numeric features
+                # For categorical features, use importance directly
+                try:
+                    # Try numeric calculation
+                    if isinstance(current_value, (int, float)) and not np.isnan(current_value):
+                        mean = self.feature_means.get(feature_name, float(current_value))
+                        std = self.feature_stds.get(feature_name, 1.0)
+                        
+                        if std > 0 and isinstance(mean, (int, float)):
+                            z_score = abs((float(current_value) - float(mean)) / float(std))
+                        else:
+                            z_score = 1.0  # Default deviation
+                    else:
+                        # Categorical feature - use importance directly with moderate deviation
+                        z_score = 1.5  # Assume moderate deviation for categoricals
+                except (TypeError, ValueError):
+                    # Categorical feature or conversion error
+                    z_score = 1.5  # Assume moderate deviation
                 
                 # Combined score: importance × deviation
                 combined_score = importance * z_score
