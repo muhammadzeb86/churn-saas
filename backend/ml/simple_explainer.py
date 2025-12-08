@@ -300,6 +300,11 @@ class SimpleChurnExplainer:
                 current_value = values[feature_name]
                 importance = self.importances[idx] if idx < len(self.importances) else 0
                 
+                # Initialize variables (will be used for impact direction)
+                mean = None
+                std = None
+                is_numeric = False
+                
                 # Calculate deviation score (z-score) - ONLY for numeric features
                 # For categorical features, use importance directly
                 try:
@@ -307,6 +312,7 @@ class SimpleChurnExplainer:
                     if isinstance(current_value, (int, float)) and not np.isnan(current_value):
                         mean = self.feature_means.get(feature_name, float(current_value))
                         std = self.feature_stds.get(feature_name, 1.0)
+                        is_numeric = True
                         
                         if std > 0 and isinstance(mean, (int, float)):
                             z_score = abs((float(current_value) - float(mean)) / float(std))
@@ -315,23 +321,34 @@ class SimpleChurnExplainer:
                     else:
                         # Categorical feature - use importance directly with moderate deviation
                         z_score = 1.5  # Assume moderate deviation for categoricals
+                        is_numeric = False
                 except (TypeError, ValueError):
                     # Categorical feature or conversion error
                     z_score = 1.5  # Assume moderate deviation
+                    is_numeric = False
                 
                 # Combined score: importance × deviation
                 combined_score = importance * z_score
                 
-                # Determine impact direction
-                if feature_name in ['tenure', 'feature_usage_score', 'seats_used']:
-                    # Lower values increase risk
-                    impact_direction = 'increases_risk' if current_value < mean else 'decreases_risk'
-                elif feature_name in ['MonthlyCharges', 'support_tickets', 'last_activity_days_ago']:
-                    # Higher values increase risk
-                    impact_direction = 'increases_risk' if current_value > mean else 'decreases_risk'
+                # Determine impact direction (only for numeric features with valid mean)
+                if is_numeric and mean is not None and isinstance(current_value, (int, float)):
+                    if feature_name in ['tenure', 'feature_usage_score', 'seats_used']:
+                        # Lower values increase risk
+                        impact_direction = 'increases_risk' if current_value < mean else 'decreases_risk'
+                    elif feature_name in ['MonthlyCharges', 'support_tickets', 'last_activity_days_ago']:
+                        # Higher values increase risk
+                        impact_direction = 'increases_risk' if current_value > mean else 'decreases_risk'
+                    else:
+                        # Default: deviation from mean increases risk
+                        if std and std > 0:
+                            impact_direction = 'increases_risk' if abs(current_value - mean) > std else 'decreases_risk'
+                        else:
+                            impact_direction = 'increases_risk' if current_value != mean else 'decreases_risk'
                 else:
-                    # Default: deviation from mean increases risk
-                    impact_direction = 'increases_risk' if abs(current_value - mean) > std else 'decreases_risk'
+                    # Categorical features: determine by feature name and typical risk patterns
+                    # For categorical features, we can't compare values numerically
+                    # so we use moderate risk as default
+                    impact_direction = 'increases_risk'  # Default for categoricals
                 
                 # Create factor
                 factor = FeatureFactor(
