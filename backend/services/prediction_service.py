@@ -22,6 +22,7 @@ from backend.models import Prediction, Upload, PredictionStatus
 from backend.ml.predict import RetentionPredictor
 from backend.ml.column_mapper import IntelligentColumnMapper
 from backend.ml.feature_validator import SaaSFeatureValidator, ValidationLevel
+from backend.ml.simple_explainer import get_simple_explainer
 from backend.services.s3_service import s3_service
 from backend.services.prediction_router import get_prediction_router
 from backend.services.data_collector import get_data_collector
@@ -507,6 +508,85 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 "positive_rate": pred_metrics["positive_rate"]
             }
         )
+        
+        # ========================================
+        # SIMPLE EXPLANATIONS (Task 1.9 - MVP)
+        # ========================================
+        # Generate fast, actionable explanations using feature importance
+        # SHAP deferred until 100+ customers and validated demand
+        
+        explanation_start = time.time()
+        try:
+            logger.info("Generating simple explanations for predictions...")
+            
+            # Get simple explainer (cached, fast)
+            explainer = get_simple_explainer(
+                model=router.telecom_predictor.model,  # Use the actual model
+                feature_names=mapped_df.columns.tolist()
+            )
+            
+            # Generate explanations for all predictions
+            churn_probs = predictions_df['churn_probability'].tolist() if 'churn_probability' in predictions_df.columns else [0.5] * len(predictions_df)
+            customer_ids = mapped_df['customerID'].tolist()
+            
+            explanations = explainer.explain_batch(
+                customer_data=mapped_df,
+                customer_ids=customer_ids,
+                churn_probabilities=churn_probs,
+                top_n=3  # Top 3 factors
+            )
+            
+            # Convert to dict format for storage
+            explanations_dict = [exp.to_dict() for exp in explanations]
+            
+            # Add explanations to predictions DataFrame
+            predictions_df['explanation'] = explanations_dict
+            
+            explanation_duration = time.time() - explanation_start
+            avg_time = (explanation_duration / len(explanations) * 1000) if explanations else 0
+            
+            # Track metrics
+            await metrics.record_time(
+                "ExplanationGenerationDuration",
+                explanation_duration,
+                namespace=MetricNamespace.WORKER
+            )
+            
+            await metrics.put_metric(
+                "ExplanationAvgTimePerCustomer",
+                avg_time,
+                MetricUnit.MILLISECONDS,
+                namespace=MetricNamespace.WORKER
+            )
+            
+            await metrics.increment_counter(
+                "ExplanationGenerationSuccess",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"Method": "feature_importance"}
+            )
+            
+            logger.info(
+                f"Explanations generated: {len(explanations)} customers in {explanation_duration:.3f}s "
+                f"(avg: {avg_time:.2f}ms per customer)",
+                extra={
+                    "event": "explanation_generation_success",
+                    "customer_count": len(explanations),
+                    "avg_time_ms": avg_time,
+                    "method": "feature_importance"
+                }
+            )
+            
+        except Exception as e:
+            # Explanation failed - log but don't fail prediction
+            logger.error(f"Failed to generate explanations: {e}", exc_info=True)
+            await metrics.increment_counter(
+                "ExplanationGenerationFailure",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"ErrorType": type(e).__name__}
+            )
+            # Add placeholder explanation column if missing
+            if 'explanation' not in predictions_df.columns:
+                predictions_df['explanation'] = None
         
         # Step 3: Save predictions to temporary file
         temp_output_file = tempfile.NamedTemporaryFile(
