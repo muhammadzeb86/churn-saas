@@ -21,6 +21,7 @@ from backend.api.database import get_async_session
 from backend.models import Prediction, Upload, PredictionStatus
 from backend.ml.predict import RetentionPredictor
 from backend.ml.column_mapper import IntelligentColumnMapper
+from backend.ml.feature_validator import SaaSFeatureValidator, ValidationLevel
 from backend.services.s3_service import s3_service
 from backend.services.prediction_router import get_prediction_router
 from backend.services.data_collector import get_data_collector
@@ -291,6 +292,129 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             )
             logger.error(f"Unexpected column mapping error: {str(e)}")
             raise ValueError(f"Column mapping failed: {str(e)}")
+        
+        # ========================================
+        # FEATURE VALIDATION (Task 1.6)
+        # ========================================
+        # Validate data quality AFTER column mapping, BEFORE ML prediction
+        # This catches data quality issues early with actionable feedback
+        
+        validation_start = time.time()
+        try:
+            logger.info(
+                "Starting feature validation",
+                extra={
+                    "event": "feature_validation_start",
+                    "rows": len(mapped_df),
+                    "columns": len(mapped_df.columns)
+                }
+            )
+            
+            # Validate with STANDARD level (best practices, not ML_TRAINING)
+            validator = SaaSFeatureValidator(level=ValidationLevel.STANDARD)
+            validation_result = validator.validate(mapped_df)
+            
+            validation_duration = time.time() - validation_start
+            
+            # Track validation metrics (for CloudWatch monitoring)
+            await metrics.record_time(
+                "FeatureValidationDuration",
+                validation_duration,
+                namespace=MetricNamespace.WORKER
+            )
+            
+            await metrics.put_metric(
+                "DataQualityScore",
+                validation_result.metrics.get('quality_score', 0),
+                MetricUnit.PERCENT,
+                namespace=MetricNamespace.WORKER,
+                dimensions={"TargetMarket": "saas"}
+            )
+            
+            # If validation fails (blocking errors), reject prediction
+            if not validation_result.is_valid:
+                # Build detailed error message from first 3 errors
+                error_summary = '\n'.join([
+                    f"• {error.field}: {error.message} → {error.action}"
+                    for error in validation_result.errors[:3]
+                ])
+                
+                error_msg = (
+                    f"Data validation failed ({len(validation_result.errors)} error(s)):\n"
+                    f"{error_summary}\n\n"
+                    f"Please fix these issues and try again."
+                )
+                
+                logger.error(
+                    f"Feature validation failed: {len(validation_result.errors)} error(s)",
+                    extra={
+                        "event": "feature_validation_failed",
+                        "quality_score": validation_result.metrics.get('quality_score', 0),
+                        "error_count": len(validation_result.errors),
+                        "warning_count": len(validation_result.warnings),
+                        "errors": [
+                            {
+                                'field': e.field,
+                                'message': e.message,
+                                'affected_rows': e.affected_rows
+                            }
+                            for e in validation_result.errors[:5]
+                        ]
+                    }
+                )
+                
+                await metrics.increment_counter(
+                    "FeatureValidationFailure",
+                    namespace=MetricNamespace.WORKER,
+                    dimensions={"ErrorType": "DataQualityError"}
+                )
+                
+                raise ValueError(error_msg)
+            
+            # Log warnings (but proceed with prediction)
+            if validation_result.warnings:
+                warning_summary = ', '.join([w.field for w in validation_result.warnings[:3]])
+                logger.warning(
+                    f"Feature validation passed with {len(validation_result.warnings)} warning(s): {warning_summary}",
+                    extra={
+                        "event": "feature_validation_warnings",
+                        "warning_count": len(validation_result.warnings),
+                        "quality_score": validation_result.metrics.get('quality_score', 0)
+                    }
+                )
+            
+            # Success metrics
+            await metrics.increment_counter(
+                "FeatureValidationSuccess",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"TargetMarket": "saas"}
+            )
+            
+            logger.info(
+                f"Feature validation passed: quality_score={validation_result.metrics.get('quality_score', 0):.1f}%, "
+                f"warnings={len(validation_result.warnings)}, duration={validation_duration:.3f}s",
+                extra={
+                    "event": "feature_validation_success",
+                    "quality_score": validation_result.metrics.get('quality_score', 0),
+                    "completeness": validation_result.metrics.get('completeness_score', 0),
+                    "errors": len(validation_result.errors),
+                    "warnings": len(validation_result.warnings),
+                    "duration_ms": validation_duration * 1000
+                }
+            )
+            
+        except ValueError as e:
+            # Validation failed - already logged
+            raise
+        except Exception as e:
+            # Unexpected validation error
+            await metrics.increment_counter(
+                "FeatureValidationFailure",
+                namespace=MetricNamespace.WORKER,
+                dimensions={"ErrorType": type(e).__name__}
+            )
+            logger.error(f"Unexpected validation error: {str(e)}")
+            raise ValueError(f"Feature validation failed: {str(e)}")
         
         # Run predictions (ML inference) with mapped DataFrame via A/B router
         ml_prediction_start = time.time()
