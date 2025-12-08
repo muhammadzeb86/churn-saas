@@ -325,22 +325,18 @@ class SaaSFeatureValidator:
         """
         Validate a single field against its rules.
         
-        Checks:
-        - Data type (pandas dtype)
-        - Value ranges (min/max)
-        - Allowed values (categorical)
-        - Null values
+        Checks (in order):
+        1. Null values (most critical - check first!)
+        2. Data type (pandas dtype)
+        3. Value ranges (min/max)
+        4. Allowed values (categorical)
+        5. Uniqueness
         """
         issues = []
         series = df[field_name]
         
-        # Check data type (FIXED: Check actual dtype, not just content)
-        dtype_issue = self._check_dtype(series, rules['dtype'])
-        if dtype_issue:
-            issues.append(dtype_issue)
-            return issues  # Can't check ranges if wrong type
-        
-        # Check null values
+        # Check null values FIRST (before dtype check)
+        # This ensures we catch all-null columns as errors, not just dtype warnings
         if not rules.get('allow_null', False):
             null_count = series.isnull().sum()
             if null_count > 0:
@@ -352,6 +348,17 @@ class SaaSFeatureValidator:
                     affected_rows=null_count,
                     sample_indices=df[series.isnull()].index[:5].tolist()
                 ))
+                # If all values are null, no point checking dtype/ranges
+                if null_count == len(df):
+                    return issues
+        
+        # Check data type (FIXED: Check actual dtype, not just content)
+        dtype_issue = self._check_dtype(series, rules['dtype'])
+        if dtype_issue:
+            issues.append(dtype_issue)
+            # If dtype is wrong and it's an ERROR (not just warning), can't check ranges
+            if dtype_issue.issue_type == IssueType.ERROR:
+                return issues
         
         # Check value ranges (numeric only)
         if rules['dtype'] == 'numeric':
