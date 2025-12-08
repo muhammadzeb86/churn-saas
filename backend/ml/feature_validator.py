@@ -355,10 +355,14 @@ class SaaSFeatureValidator:
         
         # Check value ranges (numeric only)
         if rules['dtype'] == 'numeric':
+            # Convert to numeric, coercing errors to NaN
             numeric = pd.to_numeric(series, errors='coerce')
             
+            # Only check ranges on non-null numeric values
             if 'min' in rules:
-                below_min = numeric < rules['min']
+                # Compare only valid (non-NaN) numeric values
+                valid_mask = numeric.notna()
+                below_min = valid_mask & (numeric < rules['min'])
                 if below_min.any():
                     sample_values = series[below_min].head(3).tolist()
                     issues.append(ValidationIssue(
@@ -371,7 +375,9 @@ class SaaSFeatureValidator:
                     ))
             
             if 'max' in rules:
-                above_max = numeric > rules['max']
+                # Compare only valid (non-NaN) numeric values
+                valid_mask = numeric.notna()
+                above_max = valid_mask & (numeric > rules['max'])
                 if above_max.any():
                     sample_values = series[above_max].head(3).tolist()
                     issues.append(ValidationIssue(
