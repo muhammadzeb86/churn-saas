@@ -540,7 +540,19 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             explanations_dict = [exp.to_dict() for exp in explanations]
             
             # Add explanations to predictions DataFrame
-            predictions_df['explanation'] = explanations_dict
+            # CRITICAL: Convert dicts to JSON strings for CSV compatibility
+            predictions_df['explanation'] = [json.dumps(exp, ensure_ascii=False) for exp in explanations_dict]
+            
+            # Also format risk_factors and protective_factors for readability
+            if 'risk_factors' in predictions_df.columns:
+                predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(
+                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else x
+                )
+            
+            if 'protective_factors' in predictions_df.columns:
+                predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(
+                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else x
+                )
             
             explanation_duration = time.time() - explanation_start
             avg_time = (explanation_duration / len(explanations) * 1000) if explanations else 0
