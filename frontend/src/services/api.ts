@@ -95,7 +95,7 @@ export const predictionsAPI = {
   
   getPredictionDetail: (id: string) => api.get(`/api/predictions/${id}/`),
   
-  downloadPrediction: (id: string) => api.get(`/api/predictions/download_predictions/${id}/`),
+  downloadPrediction: (id: string) => api.get(`/api/predictions/download_predictions/${id}`),
 };
 
 export const powerbiAPI = {
