@@ -520,8 +520,14 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             logger.info("Generating simple explanations for predictions...")
             
             # Get simple explainer (cached, fast)
+            # Use whichever model is available (telecom_model or saas_baseline)
+            model_for_explainer = router.telecom_model.model if router.telecom_model else None
+            
+            if model_for_explainer is None:
+                raise ValueError("No model available for explanation generation")
+            
             explainer = get_simple_explainer(
-                model=router.telecom_predictor.model,  # Use the actual model
+                model=model_for_explainer,
                 feature_names=mapped_df.columns.tolist()
             )
             
@@ -542,17 +548,6 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             # Add explanations to predictions DataFrame
             # CRITICAL: Convert dicts to JSON strings for CSV compatibility
             predictions_df['explanation'] = [json.dumps(exp, ensure_ascii=False) for exp in explanations_dict]
-            
-            # Also format risk_factors and protective_factors for readability
-            if 'risk_factors' in predictions_df.columns:
-                predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(
-                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else x
-                )
-            
-            if 'protective_factors' in predictions_df.columns:
-                predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(
-                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else x
-                )
             
             explanation_duration = time.time() - explanation_start
             avg_time = (explanation_duration / len(explanations) * 1000) if explanations else 0
@@ -599,6 +594,27 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             # Add placeholder explanation column if missing
             if 'explanation' not in predictions_df.columns:
                 predictions_df['explanation'] = None
+        
+        # ========================================
+        # FORMAT ALL JSON COLUMNS (Always runs)
+        # ========================================
+        # CRITICAL: Format risk_factors and protective_factors for readability
+        # This must run regardless of whether explanation generation succeeded
+        try:
+            if 'risk_factors' in predictions_df.columns:
+                predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(
+                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else str(x)
+                )
+            
+            if 'protective_factors' in predictions_df.columns:
+                predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(
+                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else str(x)
+                )
+            
+            logger.debug("JSON columns formatted successfully")
+        except Exception as e:
+            logger.warning(f"Failed to format JSON columns: {e}")
+            # Don't fail prediction if formatting fails
         
         # Step 3: Save predictions to temporary file
         temp_output_file = tempfile.NamedTemporaryFile(

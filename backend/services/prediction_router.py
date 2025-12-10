@@ -65,7 +65,7 @@ class PredictionRouter:
         
         # Initialize models
         try:
-            self.telecom_model = RetentionPredictor(model_type='telecom')
+            self.telecom_model = RetentionPredictor()  # No model_type parameter!
             logger.info("✅ Loaded Telecom model (control group)")
         except Exception as e:
             logger.error(f"Failed to load Telecom model: {e}")
