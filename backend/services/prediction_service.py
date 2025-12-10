@@ -514,43 +514,96 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         # ========================================
         # Generate fast, actionable explanations using feature importance
         # SHAP deferred until 100+ customers and validated demand
+        # Updated: Now handles both SaaS baseline and Telecom models
         
         explanation_start = time.time()
         try:
-            logger.info("Generating simple explanations for predictions...")
+            logger.info("Generating explanations for predictions...")
             
-            # Get simple explainer (cached, fast)
-            # Use whichever model is available (telecom_model or saas_baseline)
-            model_for_explainer = router.telecom_model.model if router.telecom_model else None
+            # Detect which model was used by checking if risk_factors column exists
+            # SaaS baseline adds risk_factors/protective_factors, Telecom model doesn't
+            uses_saas_baseline = 'risk_factors' in predictions_df.columns and 'protective_factors' in predictions_df.columns
             
-            if model_for_explainer is None:
-                raise ValueError("No model available for explanation generation")
-            
-            explainer = get_simple_explainer(
-                model=model_for_explainer,
-                feature_names=mapped_df.columns.tolist()
-            )
-            
-            # Generate explanations for all predictions
-            churn_probs = predictions_df['churn_probability'].tolist() if 'churn_probability' in predictions_df.columns else [0.5] * len(predictions_df)
-            customer_ids = mapped_df['customerID'].tolist()
-            
-            explanations = explainer.explain_batch(
-                customer_data=mapped_df,
-                customer_ids=customer_ids,
-                churn_probabilities=churn_probs,
-                top_n=3  # Top 3 factors
-            )
-            
-            # Convert to dict format for storage
-            explanations_dict = [exp.to_dict() for exp in explanations]
-            
-            # Add explanations to predictions DataFrame
-            # CRITICAL: Convert dicts to JSON strings for CSV compatibility
-            predictions_df['explanation'] = [json.dumps(exp, ensure_ascii=False) for exp in explanations_dict]
+            if uses_saas_baseline:
+                # ========================================
+                # SAAS BASELINE: Generate from risk/protective factors
+                # ========================================
+                logger.info("Generating explanations from SaaS baseline factors...")
+                
+                explanations = []
+                for idx, row in predictions_df.iterrows():
+                    # Get risk and protective factors (still as Python lists/dicts at this point)
+                    risk_factors = row.get('risk_factors', [])
+                    protective_factors = row.get('protective_factors', [])
+                    churn_prob = row.get('churn_probability', 0.5)
+                    customer_id = row.get('customerID', f'customer_{idx}')
+                    
+                    # Build human-readable explanation
+                    explanation = {
+                        'customer_id': customer_id,
+                        'churn_probability': round(churn_prob * 100, 1),
+                        'risk_level': 'High' if churn_prob > 0.6 else ('Medium' if churn_prob > 0.3 else 'Low'),
+                        'summary': _generate_summary_from_factors(risk_factors, protective_factors, churn_prob),
+                        'risk_factors': [
+                            {
+                                'factor': f['factor'],
+                                'impact': f['impact'],
+                                'description': f['message']
+                            }
+                            for f in risk_factors[:3]  # Top 3
+                        ],
+                        'protective_factors': [
+                            {
+                                'factor': f['factor'],
+                                'impact': f['impact'],
+                                'description': f['message']
+                            }
+                            for f in protective_factors[:3]  # Top 3
+                        ]
+                    }
+                    
+                    explanations.append(json.dumps(explanation, ensure_ascii=False))
+                
+                predictions_df['explanation'] = explanations
+                method_used = "saas_baseline_factors"
+                
+            else:
+                # ========================================
+                # TELECOM MODEL: Use SimpleExplainer (feature importance)
+                # ========================================
+                logger.info("Generating explanations from Telecom model...")
+                
+                model_for_explainer = router.telecom_model.model if router.telecom_model else None
+                
+                if model_for_explainer is None:
+                    raise ValueError("No model available for explanation generation")
+                
+                explainer = get_simple_explainer(
+                    model=model_for_explainer,
+                    feature_names=mapped_df.columns.tolist()
+                )
+                
+                # Generate explanations for all predictions
+                churn_probs = predictions_df['churn_probability'].tolist() if 'churn_probability' in predictions_df.columns else [0.5] * len(predictions_df)
+                customer_ids = mapped_df['customerID'].tolist()
+                
+                explanations = explainer.explain_batch(
+                    customer_data=mapped_df,
+                    customer_ids=customer_ids,
+                    churn_probabilities=churn_probs,
+                    top_n=3  # Top 3 factors
+                )
+                
+                # Convert to dict format for storage
+                explanations_dict = [exp.to_dict() for exp in explanations]
+                
+                # Add explanations to predictions DataFrame
+                # CRITICAL: Convert dicts to JSON strings for CSV compatibility
+                predictions_df['explanation'] = [json.dumps(exp, ensure_ascii=False) for exp in explanations_dict]
+                method_used = "feature_importance"
             
             explanation_duration = time.time() - explanation_start
-            avg_time = (explanation_duration / len(explanations) * 1000) if explanations else 0
+            avg_time = (explanation_duration / len(predictions_df) * 1000) if len(predictions_df) > 0 else 0
             
             # Track metrics
             await metrics.record_time(
@@ -569,17 +622,17 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             await metrics.increment_counter(
                 "ExplanationGenerationSuccess",
                 namespace=MetricNamespace.WORKER,
-                dimensions={"Method": "feature_importance"}
+                dimensions={"Method": method_used}
             )
             
             logger.info(
-                f"Explanations generated: {len(explanations)} customers in {explanation_duration:.3f}s "
-                f"(avg: {avg_time:.2f}ms per customer)",
+                f"Explanations generated: {len(predictions_df)} customers in {explanation_duration:.3f}s "
+                f"(avg: {avg_time:.2f}ms per customer) using {method_used}",
                 extra={
                     "event": "explanation_generation_success",
-                    "customer_count": len(explanations),
+                    "customer_count": len(predictions_df),
                     "avg_time_ms": avg_time,
-                    "method": "feature_importance"
+                    "method": method_used
                 }
             )
             
@@ -620,11 +673,18 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         temp_output_file = tempfile.NamedTemporaryFile(
             mode='w', 
             suffix='.csv', 
-            delete=False
+            delete=False,
+            encoding='utf-8'
         )
         temp_output_file.close()
         
-        predictions_df.to_csv(temp_output_file.name, index=False)
+        # Write CSV with proper escaping for JSON fields
+        predictions_df.to_csv(
+            temp_output_file.name, 
+            index=False,
+            escapechar='\\',
+            doublequote=True
+        )
         
         # Step 4: Upload output to S3
         output_s3_key = f"predictions/{user_id}/{prediction_id}.csv"
@@ -763,6 +823,46 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 logger.debug(f"Cleaned up temp output file: {temp_output_file.name}")
             except Exception as e:
                 logger.warning(f"Failed to clean up temp output file: {e}")
+
+
+def _generate_summary_from_factors(risk_factors: list, protective_factors: list, churn_prob: float) -> str:
+    """
+    Generate a human-readable summary from risk and protective factors.
+    
+    Args:
+        risk_factors: List of risk factor dicts
+        protective_factors: List of protective factor dicts
+        churn_prob: Churn probability (0.0-1.0)
+        
+    Returns:
+        Natural language summary string
+    """
+    if churn_prob > 0.6:
+        risk_level = "HIGH RISK"
+        action = "Immediate intervention recommended"
+    elif churn_prob > 0.3:
+        risk_level = "MEDIUM RISK"
+        action = "Proactive engagement suggested"
+    else:
+        risk_level = "LOW RISK"
+        action = "Continue monitoring"
+    
+    # Build summary parts
+    summary_parts = [f"{risk_level} ({churn_prob:.1%} churn probability). {action}."]
+    
+    # Add top risk factors
+    if risk_factors:
+        top_risks = [f['message'] for f in risk_factors[:2]]  # Top 2
+        if top_risks:
+            summary_parts.append(f"Key concerns: {'; '.join(top_risks)}.")
+    
+    # Add top protective factors
+    if protective_factors:
+        top_protections = [f['message'] for f in protective_factors[:2]]  # Top 2
+        if top_protections:
+            summary_parts.append(f"Positive signs: {'; '.join(top_protections)}.")
+    
+    return " ".join(summary_parts)
 
 
 def _get_row_bucket(row_count: int) -> str:
