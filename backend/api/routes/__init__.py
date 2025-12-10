@@ -1,2 +1,2 @@
 # Routes package
-from . import predict, powerbi, upload, waitlist, clerk, uploads_list, predictions, auth_metrics
+from . import predict, upload, waitlist, clerk, uploads_list, predictions, auth_metrics
