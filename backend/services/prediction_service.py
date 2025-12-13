@@ -7,6 +7,7 @@ import tempfile
 import os
 import uuid
 import time
+import ast
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Union
@@ -533,36 +534,41 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 explanations = []
                 for idx, row in predictions_df.iterrows():
                     # Get risk and protective factors (still as Python lists/dicts at this point)
-                    risk_factors = row.get('risk_factors', [])
-                    protective_factors = row.get('protective_factors', [])
+                    risk_factors = _normalize_factor_list(row.get('risk_factors', []))
+                    protective_factors = _normalize_factor_list(row.get('protective_factors', []))
                     churn_prob = row.get('churn_probability', 0.5)
                     customer_id = row.get('customerID', f'customer_{idx}')
                     
-                    # Build human-readable explanation
-                    explanation = {
-                        'customer_id': customer_id,
-                        'churn_probability': round(churn_prob * 100, 1),
-                        'risk_level': 'High' if churn_prob > 0.6 else ('Medium' if churn_prob > 0.3 else 'Low'),
-                        'summary': _generate_summary_from_factors(risk_factors, protective_factors, churn_prob),
-                        'risk_factors': [
-                            {
-                                'factor': f['factor'],
-                                'impact': f['impact'],
-                                'description': f['message']
-                            }
-                            for f in risk_factors[:3]  # Top 3
-                        ],
-                        'protective_factors': [
-                            {
-                                'factor': f['factor'],
-                                'impact': f['impact'],
-                                'description': f['message']
-                            }
-                            for f in protective_factors[:3]  # Top 3
-                        ]
-                    }
-                    
-                    explanations.append(json.dumps(explanation, ensure_ascii=False))
+                    try:
+                        # Build human-readable explanation
+                        explanation = {
+                            'customer_id': customer_id,
+                            'churn_probability': round(churn_prob * 100, 1),
+                            'risk_level': 'High' if churn_prob > 0.6 else ('Medium' if churn_prob > 0.3 else 'Low'),
+                            'summary': _generate_summary_from_factors(risk_factors, protective_factors, churn_prob),
+                            'risk_factors': [
+                                {
+                                    'factor': f.get('factor', ''),
+                                    'impact': f.get('impact', ''),
+                                    'description': f.get('message', '')
+                                }
+                                for f in risk_factors[:3]  # Top 3
+                                if isinstance(f, dict)
+                            ],
+                            'protective_factors': [
+                                {
+                                    'factor': f.get('factor', ''),
+                                    'impact': f.get('impact', ''),
+                                    'description': f.get('message', '')
+                                }
+                                for f in protective_factors[:3]  # Top 3
+                                if isinstance(f, dict)
+                            ]
+                        }
+                        explanations.append(json.dumps(explanation, ensure_ascii=False))
+                    except Exception as explain_err:
+                        logger.warning(f"Failed to build SaaS baseline explanation for row {idx}: {explain_err}")
+                        explanations.append(None)
                 
                 predictions_df['explanation'] = explanations
                 method_used = "saas_baseline_factors"
@@ -655,14 +661,10 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         # This must run regardless of whether explanation generation succeeded
         try:
             if 'risk_factors' in predictions_df.columns:
-                predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(
-                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else str(x)
-                )
+                predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(_serialize_json_column)
             
             if 'protective_factors' in predictions_df.columns:
-                predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(
-                    lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (list, dict)) else str(x)
-                )
+                predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(_serialize_json_column)
             
             logger.debug("JSON columns formatted successfully")
         except Exception as e:
@@ -823,6 +825,50 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 logger.debug(f"Cleaned up temp output file: {temp_output_file.name}")
             except Exception as e:
                 logger.warning(f"Failed to clean up temp output file: {e}")
+
+
+def _normalize_factor_list(value: Any) -> list:
+    """
+    Normalize risk/protective factors to a list of dicts.
+
+    Handles cases where factors may already be JSON strings or Python repr strings.
+    """
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, str):
+        # Try JSON, then Python literal
+        for loader in (json.loads, ast.literal_eval):
+            try:
+                parsed = loader(value)
+                if isinstance(parsed, list):
+                    return parsed
+                if isinstance(parsed, dict):
+                    return [parsed]
+            except Exception:
+                continue
+    return []
+
+
+def _serialize_json_column(value: Any) -> str:
+    """
+    Ensure consistent JSON serialization for CSV output.
+    Converts list/dict or JSON-like strings into proper JSON strings with double quotes.
+    """
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, str):
+        # Attempt to parse then re-dump to normalize quotes
+        normalized = _normalize_factor_list(value)
+        if normalized:
+            return json.dumps(normalized, ensure_ascii=False)
+        try:
+            loaded = json.loads(value)
+            return json.dumps(loaded, ensure_ascii=False)
+        except Exception:
+            return value
+    return str(value)
 
 
 def _generate_summary_from_factors(risk_factors: list, protective_factors: list, churn_prob: float) -> str:
