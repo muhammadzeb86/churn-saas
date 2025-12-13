@@ -8,6 +8,7 @@ import os
 import uuid
 import time
 import ast
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Union
@@ -31,6 +32,9 @@ from backend.monitoring.metrics import get_metrics_client, MetricUnit, MetricNam
 
 logger = logging.getLogger(__name__)
 metrics = get_metrics_client()
+
+# Log code version on module load - to verify correct code is deployed
+logger.info("🚀 prediction_service.py loaded - CODE_VERSION: 2024-12-13-v4-EXPLANATION-FIX")
 
 async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: str, user_id: str, s3_key: str) -> None:
     """
@@ -519,11 +523,23 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         
         explanation_start = time.time()
         try:
-            logger.info("Generating explanations for predictions...")
+            logger.info("🎯 EXPLANATION GENERATION START - Code version: 2024-12-13-v4")
+            logger.info(f"DataFrame shape: {predictions_df.shape}, Columns: {predictions_df.columns.tolist()}")
+
+            # Normalize factor columns early so downstream logic always sees lists/dicts
+            if 'risk_factors' in predictions_df.columns:
+                logger.info(f"📊 Normalizing risk_factors - sample before: {predictions_df['risk_factors'].iloc[0]}")
+                predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(_normalize_factor_list)
+                logger.info(f"✅ Normalized risk_factors - sample after: {predictions_df['risk_factors'].iloc[0]}")
+            if 'protective_factors' in predictions_df.columns:
+                logger.info(f"📊 Normalizing protective_factors")
+                predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(_normalize_factor_list)
+                logger.info(f"✅ Normalized protective_factors")
             
             # Detect which model was used by checking if risk_factors column exists
             # SaaS baseline adds risk_factors/protective_factors, Telecom model doesn't
             uses_saas_baseline = 'risk_factors' in predictions_df.columns and 'protective_factors' in predictions_df.columns
+            logger.info(f"🔍 Model detection: uses_saas_baseline={uses_saas_baseline}")
             
             if uses_saas_baseline:
                 # ========================================
@@ -659,16 +675,27 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         # ========================================
         # CRITICAL: Format risk_factors and protective_factors for readability
         # This must run regardless of whether explanation generation succeeded
+        logger.info(f"🔧 FORMATTING JSON COLUMNS - Code version: 2024-12-13-v4")
+        logger.info(f"Columns in DataFrame: {predictions_df.columns.tolist()}")
+        
         try:
             if 'risk_factors' in predictions_df.columns:
+                logger.info(f"📊 Formatting risk_factors column - sample before: {predictions_df['risk_factors'].iloc[0]}")
                 predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(_serialize_json_column)
+                logger.info(f"✅ Formatted risk_factors - sample after: {predictions_df['risk_factors'].iloc[0][:100]}")
+            else:
+                logger.warning("❌ risk_factors column NOT found in DataFrame!")
             
             if 'protective_factors' in predictions_df.columns:
+                logger.info(f"📊 Formatting protective_factors column")
                 predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(_serialize_json_column)
+                logger.info(f"✅ Formatted protective_factors")
+            else:
+                logger.warning("❌ protective_factors column NOT found in DataFrame!")
             
-            logger.debug("JSON columns formatted successfully")
+            logger.info("✅ JSON columns formatted successfully")
         except Exception as e:
-            logger.warning(f"Failed to format JSON columns: {e}")
+            logger.error(f"❌ Failed to format JSON columns: {e}", exc_info=True)
             # Don't fail prediction if formatting fails
         
         # Step 3: Save predictions to temporary file
