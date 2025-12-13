@@ -526,11 +526,18 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             logger.info("🎯 EXPLANATION GENERATION START - Code version: 2024-12-13-v4")
             logger.info(f"DataFrame shape: {predictions_df.shape}, Columns: {predictions_df.columns.tolist()}")
 
+            # Check if DataFrame has rows before processing
+            if len(predictions_df) == 0:
+                logger.warning("⚠️  DataFrame is empty - no predictions to explain")
+                predictions_df['explanation'] = None
+                return
+            
             # Normalize factor columns early so downstream logic always sees lists/dicts
             if 'risk_factors' in predictions_df.columns:
-                logger.info(f"📊 Normalizing risk_factors - sample before: {predictions_df['risk_factors'].iloc[0]}")
+                sample_log = f" - sample: {predictions_df['risk_factors'].iloc[0]}" if len(predictions_df) > 0 else ""
+                logger.info(f"📊 Normalizing risk_factors{sample_log}")
                 predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(_normalize_factor_list)
-                logger.info(f"✅ Normalized risk_factors - sample after: {predictions_df['risk_factors'].iloc[0]}")
+                logger.info(f"✅ Normalized risk_factors")
             if 'protective_factors' in predictions_df.columns:
                 logger.info(f"📊 Normalizing protective_factors")
                 predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(_normalize_factor_list)
@@ -671,31 +678,83 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 predictions_df['explanation'] = None
         
         # ========================================
-        # FORMAT ALL JSON COLUMNS (Always runs)
+        # CREATE EXCEL-FRIENDLY COLUMNS (Always runs)
         # ========================================
-        # CRITICAL: Format risk_factors and protective_factors for readability
-        # This must run regardless of whether explanation generation succeeded
-        logger.info(f"🔧 FORMATTING JSON COLUMNS - Code version: 2024-12-13-v4")
+        # Convert complex JSON to readable columns for business users
+        logger.info(f"📊 CREATING EXCEL-FRIENDLY OUTPUT - Code version: 2024-12-13-v5")
         logger.info(f"Columns in DataFrame: {predictions_df.columns.tolist()}")
         
         try:
-            if 'risk_factors' in predictions_df.columns:
-                logger.info(f"📊 Formatting risk_factors column - sample before: {predictions_df['risk_factors'].iloc[0]}")
-                predictions_df['risk_factors'] = predictions_df['risk_factors'].apply(_serialize_json_column)
-                logger.info(f"✅ Formatted risk_factors - sample after: {predictions_df['risk_factors'].iloc[0][:100]}")
-            else:
-                logger.warning("❌ risk_factors column NOT found in DataFrame!")
+            # Check if DataFrame has rows before processing
+            if len(predictions_df) == 0:
+                logger.warning("⚠️  DataFrame is empty - skipping formatting")
+                return
             
-            if 'protective_factors' in predictions_df.columns:
-                logger.info(f"📊 Formatting protective_factors column")
-                predictions_df['protective_factors'] = predictions_df['protective_factors'].apply(_serialize_json_column)
-                logger.info(f"✅ Formatted protective_factors")
-            else:
-                logger.warning("❌ protective_factors column NOT found in DataFrame!")
+            # Parse explanation JSON and create readable columns
+            if 'explanation' in predictions_df.columns:
+                logger.info("📋 Creating user-friendly columns from explanations...")
+                
+                for idx, row in predictions_df.iterrows():
+                    try:
+                        # Parse explanation if it's a JSON string
+                        if isinstance(row['explanation'], str):
+                            expl = json.loads(row['explanation'])
+                        else:
+                            expl = row['explanation']
+                        
+                        if expl and isinstance(expl, dict):
+                            # Extract readable fields
+                            predictions_df.at[idx, 'risk_level'] = expl.get('risk_level', '')
+                            predictions_df.at[idx, 'summary'] = expl.get('summary', '')
+                            
+                            # Convert risk factors to comma-separated text
+                            risk_list = expl.get('risk_factors', [])
+                            if risk_list:
+                                risk_text = ', '.join([f['description'] for f in risk_list[:3]])
+                                predictions_df.at[idx, 'key_risks'] = risk_text
+                            
+                            # Convert protective factors to comma-separated text
+                            protective_list = expl.get('protective_factors', [])
+                            if protective_list:
+                                protective_text = ', '.join([f['description'] for f in protective_list[:3]])
+                                predictions_df.at[idx, 'strengths'] = protective_text
+                    except Exception as e:
+                        logger.warning(f"Failed to parse explanation for row {idx}: {e}")
+                        continue
             
-            logger.info("✅ JSON columns formatted successfully")
+            # Generate recommendation column
+            if 'churn_probability' in predictions_df.columns:
+                def get_recommendation(churn_prob):
+                    if churn_prob > 0.6:
+                        return "🚨 HIGH RISK - Immediate intervention needed"
+                    elif churn_prob > 0.3:
+                        return "⚠️  MEDIUM RISK - Proactive engagement recommended"
+                    else:
+                        return "✅ LOW RISK - Continue monitoring"
+                
+                predictions_df['recommendation'] = predictions_df['churn_probability'].apply(get_recommendation)
+            
+            # Format churn probability as percentage
+            if 'churn_probability' in predictions_df.columns:
+                predictions_df['churn_risk_pct'] = (predictions_df['churn_probability'] * 100).round(1).astype(str) + '%'
+            
+            # Drop complex JSON columns that aren't Excel-friendly
+            columns_to_drop = ['explanation', 'risk_factors', 'protective_factors', 'predicted_at']
+            for col in columns_to_drop:
+                if col in predictions_df.columns:
+                    predictions_df = predictions_df.drop(columns=[col])
+                    logger.info(f"Dropped column: {col}")
+            
+            # Reorder columns for better Excel experience
+            priority_columns = ['customerID', 'risk_level', 'churn_risk_pct', 'recommendation', 'summary', 'key_risks', 'strengths']
+            other_columns = [col for col in predictions_df.columns if col not in priority_columns]
+            new_order = [col for col in priority_columns if col in predictions_df.columns] + other_columns
+            predictions_df = predictions_df[new_order]
+            
+            logger.info(f"✅ Excel-friendly columns created. Final columns: {predictions_df.columns.tolist()}")
+            
         except Exception as e:
-            logger.error(f"❌ Failed to format JSON columns: {e}", exc_info=True)
+            logger.error(f"❌ Failed to create Excel-friendly columns: {e}", exc_info=True)
             # Don't fail prediction if formatting fails
         
         # Step 3: Save predictions to temporary file
