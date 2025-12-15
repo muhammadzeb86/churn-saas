@@ -502,6 +502,13 @@ jobs:
         echo "Migration verification completed successfully!"
         echo "Database schema is now up to date."
     
+    # PHASE 2 PRE-LAUNCH: Re-authenticate to pick up updated IAM permissions
+    - name: Refresh AWS credentials for CloudWatch deployment
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::908226940571:role/retainwise-cicd-ecs-deployment-role
+        aws-region: ${{ env.AWS_REGION }}
+    
     # PHASE 2 PRE-LAUNCH: Deploy CloudWatch monitoring
     - name: Deploy CloudWatch monitoring
       run: |
