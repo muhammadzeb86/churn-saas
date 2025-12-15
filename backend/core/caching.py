@@ -64,6 +64,7 @@ class PredictionCache:
         self.redis_url = redis_url
         self.redis_client = None
         self.cache_ttl_seconds = 7 * 24 * 3600  # 7 days
+        self.enabled = False  # Will be set to True if Redis connects
         
         # Cache statistics
         self.stats = {
@@ -73,18 +74,28 @@ class PredictionCache:
         }
     
     async def connect(self):
-        """Initialize Redis connection"""
+        """Initialize Redis connection (gracefully fails if Redis unavailable)"""
         if not self.redis_client:
-            self.redis_client = await redis.from_url(
-                self.redis_url,
-                encoding="utf-8",
-                decode_responses=False  # Store binary data (pickle)
-            )
-            production_logger.logger.info(
-                "cache_connected",
-                redis_url=self.redis_url.split('@')[-1],  # Hide password
-                severity="INFO"
-            )
+            try:
+                self.redis_client = await redis.from_url(
+                    self.redis_url,
+                    encoding="utf-8",
+                    decode_responses=False  # Store binary data (pickle)
+                )
+                self.enabled = True
+                production_logger.logger.info(
+                    "cache_connected",
+                    redis_url=self.redis_url.split('@')[-1],  # Hide password
+                    severity="INFO"
+                )
+            except Exception as e:
+                self.enabled = False
+                production_logger.logger.warning(
+                    "cache_connection_failed",
+                    error=str(e),
+                    message="Caching disabled - predictions will work without cache",
+                    severity="WARNING"
+                )
     
     async def disconnect(self):
         """Close Redis connection"""
@@ -153,6 +164,10 @@ class PredictionCache:
         """
         await self.connect()
         
+        # If Redis unavailable, always return cache miss
+        if not self.enabled:
+            return None
+        
         try:
             cached_data = await self.redis_client.get(cache_key)
             
@@ -208,6 +223,10 @@ class PredictionCache:
         ttl_seconds: TTL override (default: 7 days)
         """
         await self.connect()
+        
+        # If Redis unavailable, silently skip caching
+        if not self.enabled:
+            return
         
         ttl = ttl_seconds or self.cache_ttl_seconds
         
