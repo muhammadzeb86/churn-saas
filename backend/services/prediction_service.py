@@ -30,11 +30,36 @@ from backend.services.prediction_router import get_prediction_router
 from backend.services.data_collector import get_data_collector
 from backend.monitoring.metrics import get_metrics_client, MetricUnit, MetricNamespace
 
+# ========================================
+# PHASE 2: PRODUCTION OBSERVABILITY
+# ========================================
+from backend.core.observability import (
+    ProductionLogger,
+    PerformanceMonitor,
+    CloudWatchMetrics,
+    CostTracker,
+    log_prediction_event
+)
+
+# Initialize production monitoring
+production_logger = ProductionLogger(__name__)
+perf_monitor = PerformanceMonitor()
+cloudwatch_metrics = CloudWatchMetrics()
+cost_tracker = CostTracker()
+
+# Legacy logger for backward compatibility
 logger = logging.getLogger(__name__)
 metrics = get_metrics_client()
 
 # Log code version on module load - to verify correct code is deployed
-logger.info("🚀 prediction_service.py loaded - CODE_VERSION: 2024-12-13-v4-EXPLANATION-FIX")
+logger.info("🚀 prediction_service.py loaded - CODE_VERSION: 2024-12-15-PHASE2-OBSERVABILITY")
+production_logger.logger.info(
+    "module_loaded",
+    module="prediction_service",
+    version="2024-12-15-PHASE2-OBSERVABILITY",
+    features=["structured_logging", "performance_monitoring", "cost_tracking"],
+    severity="INFO"
+)
 
 async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: str, user_id: str, s3_key: str) -> None:
     """
@@ -50,6 +75,14 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
     if isinstance(prediction_id, str):
         prediction_id = uuid.UUID(prediction_id)
     
+    # PHASE 2: Structured logging (CloudWatch Insights compatible)
+    production_logger.log_prediction_start(
+        prediction_id=str(prediction_id),
+        user_id=user_id,
+        row_count=0  # Will update after loading
+    )
+    
+    # Legacy logging (backward compatibility)
     logger.info(
         "Starting prediction processing",
         extra={
@@ -63,6 +96,7 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
     
     temp_input_file = None
     temp_output_file = None
+    overall_start_time = time.time()
     
     try:
         async with get_async_session() as db:
@@ -870,6 +904,29 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             dimensions={"Table": "predictions", "RowCount": str(_get_row_bucket(original_row_count))}
         )
         
+        # PHASE 2: Structured completion logging + cost tracking
+        overall_duration_ms = (time.time() - overall_start_time) * 1000
+        
+        # Log completion with structured data
+        production_logger.log_prediction_complete(
+            prediction_id=str(prediction_id),
+            duration_ms=overall_duration_ms,
+            row_count=pred_metrics["rows_processed"]
+        )
+        
+        # Record CloudWatch metrics (with regression detection)
+        cloudwatch_metrics.record_prediction_duration(
+            duration_ms=overall_duration_ms,
+            row_count=pred_metrics["rows_processed"],
+            model_type="saas_baseline"  # or detect from pred_metrics
+        )
+        
+        # Estimate and track costs
+        estimated_cost = cost_tracker.estimate_prediction_cost(
+            row_count=pred_metrics["rows_processed"],
+            duration_ms=overall_duration_ms
+        )
+        
         logger.info(
             "Prediction processing completed successfully",
             extra={
@@ -878,11 +935,27 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 "upload_id": upload_id,
                 "user_id": user_id,
                 "rows_processed": pred_metrics["rows_processed"],
-                "s3_output_key": actual_s3_key
+                "s3_output_key": actual_s3_key,
+                "duration_ms": round(overall_duration_ms, 2),
+                "estimated_cost_usd": round(estimated_cost, 6)
             }
         )
         
     except Exception as e:
+        # PHASE 2: Structured error logging
+        production_logger.log_prediction_error(
+            prediction_id=str(prediction_id),
+            error=e,
+            user_id=user_id,
+            upload_id=upload_id
+        )
+        
+        # Record error metric in CloudWatch
+        cloudwatch_metrics.record_error(
+            error_type=type(e).__name__,
+            operation="process_prediction"
+        )
+        
         logger.error(
             f"Prediction processing failed: {str(e)}",
             extra={
