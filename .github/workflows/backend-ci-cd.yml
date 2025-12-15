@@ -501,6 +501,18 @@ jobs:
       run: |
         echo "Migration verification completed successfully!"
         echo "Database schema is now up to date."
+    
+    # PHASE 2 PRE-LAUNCH: Deploy CloudWatch monitoring
+    - name: Deploy CloudWatch monitoring
+      run: |
+        echo "📊 Deploying CloudWatch Dashboard and Alarms..."
+        
+        cd $GITHUB_WORKSPACE
+        python scripts/deploy_monitoring.py --deploy
+        
+        echo "✅ CloudWatch monitoring deployed!"
+        echo "📊 Dashboard: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=RetainWise-Production"
+        echo "🚨 Alarms: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#alarmsV2:"
         
     - name: Get load balancer URL
       run: |
