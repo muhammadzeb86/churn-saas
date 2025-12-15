@@ -120,6 +120,10 @@ resource "aws_ecs_task_definition" "retainwise_worker" {
           value = "postgresql://${aws_db_instance.main.username}:${aws_db_instance.main.password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
         },
         {
+          name  = "REDIS_URL"
+          value = "redis://retainwise-cache.kysjdj.0001.use1.cache.amazonaws.com:6379"
+        },
+        {
           name  = "CLERK_FRONTEND_API"
           value = "clerk.retainwiseanalytics.com"
         },

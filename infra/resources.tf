@@ -411,6 +411,10 @@ resource "aws_ecs_task_definition" "backend" {
           value = "true"
         },
         {
+          name  = "REDIS_URL"
+          value = "redis://retainwise-cache.kysjdj.0001.use1.cache.amazonaws.com:6379"
+        },
+        {
           name  = "POWERBI_WORKSPACE_ID"
           value = "cb604b66-17ab-4831-b8b9-2e718c5cf3f5"
         },
