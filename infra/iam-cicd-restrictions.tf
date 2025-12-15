@@ -148,6 +148,34 @@ resource "aws_iam_policy" "cicd_ecs_deployment" {
           "dynamodb:DescribeTable"
         ]
         Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/retainwise-terraform-locks"
+      },
+      {
+        Sid = "CloudWatchMonitoringDeployment"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutDashboard",
+          "cloudwatch:DeleteDashboards",
+          "cloudwatch:GetDashboard",
+          "cloudwatch:ListDashboards",
+          "cloudwatch:PutMetricAlarm",
+          "cloudwatch:DeleteAlarms",
+          "cloudwatch:DescribeAlarms",
+          "cloudwatch:DescribeAlarmsForMetric"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid = "SNSForCloudWatchAlarms"
+        Effect = "Allow"
+        Action = [
+          "sns:CreateTopic",
+          "sns:Subscribe",
+          "sns:SetTopicAttributes",
+          "sns:GetTopicAttributes",
+          "sns:ListTopics",
+          "sns:ListSubscriptionsByTopic"
+        ]
+        Resource = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:retainwise-*"
       }
     ]
   })
