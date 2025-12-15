@@ -722,15 +722,15 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                         logger.warning(f"Failed to parse explanation for row {idx}: {e}")
                         continue
             
-            # Generate recommendation column
+            # Generate recommendation column (no emojis - Excel compatibility)
             if 'churn_probability' in predictions_df.columns:
                 def get_recommendation(churn_prob):
                     if churn_prob > 0.6:
-                        return "🚨 HIGH RISK - Immediate intervention needed"
+                        return "HIGH RISK - Immediate intervention needed"
                     elif churn_prob > 0.3:
-                        return "⚠️  MEDIUM RISK - Proactive engagement recommended"
+                        return "MEDIUM RISK - Proactive engagement recommended"
                     else:
-                        return "✅ LOW RISK - Continue monitoring"
+                        return "LOW RISK - Continue monitoring"
                 
                 predictions_df['recommendation'] = predictions_df['churn_probability'].apply(get_recommendation)
             
