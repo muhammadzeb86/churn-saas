@@ -5,8 +5,7 @@ import {
   AlertTriangle, 
   AlertCircle, 
   TrendingUp,
-  CheckCircle,
-  HelpCircle 
+  CheckCircle
 } from 'lucide-react';
 
 interface MetricCardProps {

@@ -13,8 +13,6 @@ const PredictionSchema = z.object({
   // Allow partial data for graceful degradation
 }).passthrough();
 
-type ValidatedPrediction = z.infer<typeof PredictionSchema>;
-
 interface SummaryMetricsProps {
   predictions: unknown[];
   isLoading?: boolean;
