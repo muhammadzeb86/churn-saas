@@ -238,7 +238,10 @@ def create_production_dashboard() -> Dict[str, Any]:
                         [
                             "RetainWise/Production",
                             "EstimatedCost",
-                            {"stat": "Sum", "label": "Daily Cost"}
+                            {
+                                "stat": "Sum",
+                                "label": "Daily Cost"
+                            }
                         ]
                     ],
                     "period": 86400,  # 24 hours
@@ -286,18 +289,30 @@ def create_production_dashboard() -> Dict[str, Any]:
                         [
                             "RetainWise/Production",
                             "PredictionDuration",
-                            {"stat": "Average", "label": "<100 rows"},
-                            {"RowCount": "<100"}
+                            "RowCount",
+                            "<100",
+                            {
+                                "stat": "Average",
+                                "label": "<100 rows"
+                            }
                         ],
                         [
                             "...",
-                            {"stat": "Average", "label": "100-1K rows"},
-                            {"RowCount": "100-1K"}
+                            ".",
+                            "100-1K",
+                            {
+                                "stat": "Average",
+                                "label": "100-1K rows"
+                            }
                         ],
                         [
                             "...",
-                            {"stat": "Average", "label": "1K-10K rows"},
-                            {"RowCount": "1K-10K"}
+                            ".",
+                            "1K-10K",
+                            {
+                                "stat": "Average",
+                                "label": "1K-10K rows"
+                            }
                         ]
                     ],
                     "period": 300,
@@ -359,23 +374,28 @@ def create_production_dashboard() -> Dict[str, Any]:
                         [
                             "RetainWise/Production",
                             "ErrorCount",
-                            {"ErrorType": "S3UploadError"}
+                            "ErrorType",
+                            "S3UploadError"
                         ],
                         [
                             "...",
-                            {"ErrorType": "S3DownloadError"}
+                            ".",
+                            "S3DownloadError"
                         ],
                         [
                             "...",
-                            {"ErrorType": "DatabaseError"}
+                            ".",
+                            "DatabaseError"
                         ],
                         [
                             "...",
-                            {"ErrorType": "ValidationError"}
+                            ".",
+                            "ValidationError"
                         ],
                         [
                             "...",
-                            {"ErrorType": "MLModelError"}
+                            ".",
+                            "MLModelError"
                         ]
                     ],
                     "period": 300,
@@ -450,15 +470,18 @@ def create_production_dashboard() -> Dict[str, Any]:
                         [
                             "RetainWise/Production",
                             "EstimatedCost",
-                            {"Service": "s3_upload"}
+                            "Service",
+                            "s3_upload"
                         ],
                         [
                             "...",
-                            {"Service": "prediction"}
+                            ".",
+                            "prediction"
                         ],
                         [
                             "...",
-                            {"Service": "database"}
+                            ".",
+                            "database"
                         ]
                     ],
                     "period": 3600,  # 1 hour
