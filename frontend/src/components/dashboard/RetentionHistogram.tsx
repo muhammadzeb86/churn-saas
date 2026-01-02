@@ -177,7 +177,7 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
       weightedSum += retentionProb;
     }
     
-    const sampledTotal = bins.reduce((sum, bin) => sum + bin.count, 0);
+    const sampledTotal = bins.reduce((sum: number, bin) => sum + bin.count, 0);
     const scaleFactor = predictions.length / sampledPredictions.length;
     const meanRet = validCount > 0 ? weightedSum / validCount : 0;
     
@@ -227,7 +227,7 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
       };
     });
     
-    const modeBin = histogramData.reduce((max, bin) => 
+    const modeBin = histogramData.reduce((max: BinData, bin: BinData) => 
       bin.count > max.count ? bin : max,
       histogramData[0]
     );
@@ -329,7 +329,7 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
         </div>
         
         <div role="status" aria-live="polite" className="sr-only">
-          Showing {histogramData.reduce((sum, b) => sum + b.count, 0)} customers
+          Showing {histogramData.reduce((sum: number, b) => sum + b.count, 0)} customers
           across {stats.numBins - stats.emptyBins} retention probability ranges.
           {stats.sampled && ` Data sampled from ${predictions.length.toLocaleString()} total predictions. Estimates include confidence intervals.`}
           {stats.validationErrors > 0 && ` ${stats.validationErrors} predictions skipped due to validation errors.`}
