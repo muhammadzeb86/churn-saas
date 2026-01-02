@@ -176,6 +176,34 @@ resource "aws_iam_policy" "cicd_ecs_deployment" {
           "sns:ListSubscriptionsByTopic"
         ]
         Resource = "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:retainwise-*"
+      },
+      {
+        Sid = "IAMSelfManagement"
+        Effect = "Allow"
+        Action = [
+          "iam:CreatePolicy",
+          "iam:CreatePolicyVersion",
+          "iam:DeletePolicy",
+          "iam:DeletePolicyVersion",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:ListPolicyVersions",
+          "iam:UpdateAssumeRolePolicy",
+          "iam:GetRole",
+          "iam:UpdateRole",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:TagPolicy",
+          "iam:UntagPolicy",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies"
+        ]
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/retainwise-cicd-ecs-deployment-role",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/retainwise-cicd-ecs-deployment-restricted"
+        ]
       }
     ]
   })
