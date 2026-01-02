@@ -561,14 +561,14 @@ def create_production_alarms():
         TreatMissingData='notBreaching'
     )
     
-    # Alarm 2: P95 Latency Degradation
+    # Alarm 2: High Average Latency (use Average since p95 requires ExtendedStatistic)
     cloudwatch.put_metric_alarm(
         AlarmName='RetainWise-HighLatency',
-        AlarmDescription='P95 latency exceeded 1000ms - performance degradation',
+        AlarmDescription='Average latency exceeded 1000ms - performance degradation',
         ActionsEnabled=True,
         MetricName='PredictionDuration',
         Namespace='RetainWise/Production',
-        Statistic='p95',
+        Statistic='Average',
         Period=300,
         EvaluationPeriods=2,  # 2 consecutive periods
         Threshold=1000,  # 1000ms
