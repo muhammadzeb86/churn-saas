@@ -234,13 +234,13 @@ export const SummaryMetrics: React.FC<SummaryMetricsProps> = ({
         <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
           Upload a CSV file or connect your database to start predicting churn risk.
         </p>
-        <div className="space-x-4">
-          <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+        <div>
+          <a 
+            href="/upload"
+            className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
             Upload CSV
-          </button>
-          <button className="px-6 py-3 border-2 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-            Connect Database
-          </button>
+          </a>
         </div>
       </div>
     );
