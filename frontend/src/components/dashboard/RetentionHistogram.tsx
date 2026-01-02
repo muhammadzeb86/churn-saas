@@ -308,6 +308,9 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
     return <ChartEmpty />;
   }
   
+  // Calculate total customers for display (explicit typing for TypeScript)
+  const totalCustomers: number = histogramData.reduce((sum: number, bin: BinData) => sum + bin.count, 0);
+  
   return (
     <ErrorBoundary
       fallback={<ChartCrashFallback />}
@@ -329,7 +332,7 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
         </div>
         
         <div role="status" aria-live="polite" className="sr-only">
-          Showing {histogramData.reduce((sum: number, b) => sum + b.count, 0)} customers
+          Showing {totalCustomers} customers
           across {stats.numBins - stats.emptyBins} retention probability ranges.
           {stats.sampled && ` Data sampled from ${predictions.length.toLocaleString()} total predictions. Estimates include confidence intervals.`}
           {stats.validationErrors > 0 && ` ${stats.validationErrors} predictions skipped due to validation errors.`}
