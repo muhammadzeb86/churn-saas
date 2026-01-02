@@ -146,10 +146,12 @@ export const RiskDistributionChart: React.FC<RiskDistributionChartProps> = React
         validationErrors++;
         // Log first 5 errors only (avoid console spam)
         if (validationErrors <= 5) {
+          // Cast to any for debug logging of invalid data
+          const debugPred = pred as any;
           console.debug('[RiskChart] Invalid prediction:', {
-            hasId: !!pred?.id,
-            hasProb: typeof pred?.churn_probability === 'number',
-            status: pred?.status
+            hasId: !!debugPred?.id,
+            hasProb: typeof debugPred?.churn_probability === 'number',
+            status: debugPred?.status
           });
         }
         continue;
