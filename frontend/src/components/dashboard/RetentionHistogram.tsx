@@ -120,10 +120,15 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
   }, []);
   
   // ✅ FIX: Optimized to 2 loops instead of 5, with confidence intervals
-  const { histogramData, stats, modeBin, meanRetention } = useMemo(() => {
+  const { histogramData, stats, modeBin, meanRetention } = useMemo<{
+    histogramData: BinData[];
+    stats: ProcessingStats;
+    modeBin: BinData | null;
+    meanRetention: number;
+  }>(() => {
     if (!predictions?.length) {
       return {
-        histogramData: [],
+        histogramData: [] as BinData[],
         stats: { processed: 0, sampled: false, duration: 0, validationErrors: 0, emptyBins: 0, numBins: 10 },
         modeBin: null,
         meanRetention: 0
@@ -308,7 +313,7 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
     return <ChartEmpty />;
   }
   
-  // Calculate total customers for display (explicit typing for TypeScript)
+  // Calculate total customers for display (histogramData is typed as BinData[] from useMemo)
   const totalCustomers: number = histogramData.reduce((sum: number, bin: BinData) => sum + bin.count, 0);
   
   return (
