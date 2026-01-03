@@ -13,7 +13,8 @@ const RISK_OPTIONS = [
     value: 'all' as const,
     label: 'All Customers',
     icon: Users,
-    color: 'blue'
+    color: 'blue',
+    description: undefined
   },
   {
     value: 'high' as const,
