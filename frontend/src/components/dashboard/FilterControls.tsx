@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFilters, filterPredictions, exportFilteredData, generateShareableUrl } from './hooks/useFilters';
+import { exportToExcel, validateExportData } from '../../utils/excelExport';
 import { RiskLevelFilter } from './filters/RiskLevelFilter';
 import { DateRangeFilter } from './filters/DateRangeFilter';
 import { SearchFilter } from './filters/SearchFilter';
-import { X, Filter, Download, Share2, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { X, Filter, Download, Share2, ChevronDown, ChevronUp, AlertTriangle, FileSpreadsheet, FileText } from 'lucide-react';
 import type { Prediction } from '../../types';
 
 interface FilterControlsProps {
@@ -41,6 +42,9 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
   
   const [isExpanded, setIsExpanded] = useState(true);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [isExporting, setIsExporting] = useState(false);
   
   // Auto-dismiss toast
   useEffect(() => {
@@ -60,18 +64,64 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
     onFilteredDataChange(filteredResult.items, filteredResult.metrics);
   }, [filteredResult, onFilteredDataChange]);
   
-  // Export handler
-  const handleExport = () => {
+  // Export handler with Excel and CSV options
+  const handleExport = async (format: 'csv' | 'excel') => {
     try {
+      setIsExporting(true);
+      setExportProgress(0);
+      
       const timestamp = new Date().toISOString().split('T')[0];
       const riskSuffix = filters.riskLevel !== 'all' ? `_${filters.riskLevel}` : '';
-      const filename = `churn_predictions${riskSuffix}_${timestamp}.csv`;
+      const filename = `churn_predictions${riskSuffix}_${timestamp}`;
       
-      exportFilteredData(filteredResult.items, filename);
-      setToast({ message: `Exported ${filteredResult.items.length} predictions`, type: 'success' });
+      if (format === 'excel') {
+        // Validate first
+        const validation = validateExportData(filteredResult.items);
+        if (!validation.valid) {
+          setToast({ message: validation.errors[0], type: 'error' });
+          return;
+        }
+        
+        // Export to Excel with progress
+        const result = await exportToExcel({
+          predictions: filteredResult.items,
+          filename,
+          includeSummary: true,
+          maskingStrategy: 'partial', // GDPR compliance
+          onProgress: (percent) => setExportProgress(percent),
+          riskThresholds: thresholds,
+          modelVersion: 'v2.1.4'
+        });
+        
+        if (result.success) {
+          setToast({ 
+            message: `✅ Exported ${result.rowsExported} predictions to Excel`, 
+            type: 'success' 
+          });
+        } else {
+          setToast({ message: result.error || 'Export failed', type: 'error' });
+        }
+        
+      } else {
+        // Existing CSV export
+        exportFilteredData(filteredResult.items, `${filename}.csv`);
+        setToast({ 
+          message: `Exported ${filteredResult.items.length} predictions to CSV`, 
+          type: 'success' 
+        });
+      }
+      
+      setShowExportMenu(false);
+      
     } catch (error) {
       console.error('Export failed:', error);
-      setToast({ message: 'Export failed. Please try again.', type: 'error' });
+      setToast({ 
+        message: error instanceof Error ? error.message : 'Export failed. Please try again.', 
+        type: 'error' 
+      });
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
     }
   };
   
@@ -125,6 +175,26 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
         </div>
       )}
       
+      {/* Export progress bar */}
+      {isExporting && exportProgress > 0 && (
+        <div className="fixed top-16 right-4 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 z-50 animate-fade-in">
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-gray-700 dark:text-gray-300">Exporting to Excel...</span>
+            <span className="font-semibold text-gray-900 dark:text-white">{exportProgress}%</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${exportProgress}%` }}
+              role="progressbar"
+              aria-valuenow={exportProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
+          </div>
+        </div>
+      )}
+      
       <div 
         className="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-6 border border-gray-200 dark:border-gray-700"
         role="region"
@@ -162,16 +232,57 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
             
             {/* Action buttons */}
             <div className="flex items-center gap-1">
-              {/* Export button */}
+              {/* Export button with dropdown */}
               {filteredCount > 0 && (
-                <button
-                  onClick={handleExport}
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                  aria-label="Export filtered data"
-                  title="Export to CSV"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    disabled={isExporting}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    aria-haspopup="true"
+                    aria-expanded={showExportMenu}
+                    aria-label="Export predictions"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Export</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                  
+                  {showExportMenu && (
+                    <div 
+                      className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10"
+                      role="menu"
+                      aria-label="Export format options"
+                    >
+                      <button
+                        onClick={() => handleExport('excel')}
+                        disabled={isExporting}
+                        className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-50 border-b border-gray-100 dark:border-gray-700"
+                        role="menuitem"
+                        tabIndex={0}
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white">Export to Excel</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Professional formatting (.xlsx)</div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => handleExport('csv')}
+                        disabled={isExporting}
+                        className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-50"
+                        role="menuitem"
+                        tabIndex={0}
+                      >
+                        <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white">Export to CSV</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Simple format (.csv)</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
               
               {/* Share button */}
@@ -194,7 +305,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
                   aria-label="Clear all filters"
                 >
                   <X className="w-4 h-4" />
-                  Clear
+                  <span className="hidden sm:inline">Clear</span>
                 </button>
               )}
               

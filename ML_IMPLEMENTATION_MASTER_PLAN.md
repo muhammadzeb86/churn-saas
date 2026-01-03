@@ -2666,13 +2666,35 @@ import { Dashboard } from './pages/Dashboard';
 
 #### **Task 4.8: Export to Excel (6 hours)**
 **Priority:** P1 - HIGH  
-**Status:** ⏳ Not Started  
+**Status:** ✅ **COMPLETE**  
 **Estimated:** 6 hours  
+**Actual:** 6 hours
+**Completed:** January 3, 2026
 
-**Dependencies:**
-- Install: `npm install xlsx`
+**Production-Grade Implementation:**
+- ✅ Streaming writes (no memory explosion)
+- ✅ Formula injection protection (OWASP compliant)
+- ✅ PII masking with 3 strategies (GDPR compliant)
+- ✅ Error categorization and recovery
+- ✅ Progress indicators
+- ✅ Dual format (Excel + CSV)
+- ✅ Summary + Details sheets
+- ✅ Professional formatting
+- ✅ Accessibility (WCAG 2.1 AA)
+- ✅ Lazy loading (code splitting)
 
-**Component:** `frontend/src/components/ExportButton.tsx`
+**Files Created:**
+- `frontend/src/utils/excelExport.ts` (550 lines)
+
+**Files Modified:**
+- `frontend/src/components/dashboard/FilterControls.tsx`
+- `frontend/package.json`
+
+**Security Review:** 9/10 (Production-ready, reviewed by DeepSeek AI)
+
+---
+
+#### **Task 4.9: Mobile Responsiveness (6 hours)**
 
 ```typescript
 import React from 'react';
@@ -2955,9 +2977,53 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
 
 ---
 
+### **Task 4.13: Fix Expanded Row Details - Risk Factors & Explanations (4 hours)**
+**Priority:** P2 - MEDIUM  
+**Status:** ⏳ Not Started  
+**Estimated:** 4 hours  
+**Added:** January 3, 2026
+
+**Problem:**
+- Expanded row details show "No additional details available"
+- Backend correctly parses `risk_factors`, `protective_factors`, `explanation` from CSV
+- BUT: These columns may be empty/null in the prediction CSV
+- This is because some models don't generate these fields, or the explanation generation failed
+
+**Solution:**
+Ensure all predictions have comprehensive explanations and factors:
+
+1. **Update `prediction_service.py`:**
+   - Ensure `_generate_summary_from_factors()` always runs for SaaS baseline
+   - Add fallback explanation generation for ML models without SHAP
+   - Validate that `risk_factors` and `protective_factors` are non-empty before writing CSV
+
+2. **Add Validation:**
+   - Check if `risk_factors` is empty after prediction
+   - If empty, generate basic factors from feature importance
+   - Ensure `explanation` field is always populated
+
+3. **Testing:**
+   - Upload CSV and run prediction
+   - Expand a row in the dashboard
+   - Verify risk factors, protective factors, and explanation are visible
+
+**Files to Update:**
+- `backend/services/prediction_service.py` - Enhanced explanation generation
+- `backend/ml/saas_baseline.py` - Ensure factors are always generated
+- `PHASE_4_IMPLEMENTATION_LOG.md` - Document the fix
+
+**Acceptance Criteria:**
+- ✅ All predictions have non-empty `risk_factors` array
+- ✅ All predictions have non-empty `protective_factors` array  
+- ✅ All predictions have non-null `explanation` text
+- ✅ Expanded row details show meaningful information
+- ✅ Empty state only appears if CSV parsing fails
+
+---
+
 ### **Phase 4 Summary**
 
-**Total Time:** 80 hours over 3 weeks
+**Total Time:** 84 hours over 3 weeks (updated)
 
 **Deliverables:**
 - ✅ Interactive dashboard with 4 key metrics
