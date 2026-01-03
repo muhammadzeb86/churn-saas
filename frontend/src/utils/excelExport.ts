@@ -165,6 +165,78 @@ function calculateRiskLevel(
 }
 
 /**
+ * Parse factors from JSON for Excel export
+ * Extracts messages and joins them with semicolons
+ */
+function parseFactorsForExport(value: any): string {
+  if (!value) return '';
+  
+  try {
+    let parsed: any;
+    
+    // If already an array, use it
+    if (Array.isArray(value)) {
+      parsed = value;
+    } 
+    // If string, try to parse JSON
+    else if (typeof value === 'string') {
+      parsed = JSON.parse(value);
+    } 
+    else {
+      return '';
+    }
+    
+    // Extract messages from factor objects
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter(item => item && typeof item === 'object' && 'message' in item)
+        .map(item => item.message)
+        .filter(msg => typeof msg === 'string' && msg.length > 0)
+        .join('; ');
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('Failed to parse factors for export:', error);
+    return '';
+  }
+}
+
+/**
+ * Parse explanation JSON for Excel export
+ * Extracts the summary text
+ */
+function parseExplanationForExport(value: any): string {
+  if (!value) return '';
+  
+  try {
+    let parsed: any;
+    
+    // If already an object, use it
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      parsed = value;
+    } 
+    // If string, try to parse JSON
+    else if (typeof value === 'string') {
+      parsed = JSON.parse(value);
+    } 
+    else {
+      return '';
+    }
+    
+    // Extract summary
+    if (parsed && typeof parsed === 'object' && 'summary' in parsed) {
+      return parsed.summary || '';
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('Failed to parse explanation for export:', error);
+    return '';
+  }
+}
+
+/**
  * ✅ PERFORMANCE: Streaming write to avoid memory explosion
  * No intermediate arrays - write chunks directly to worksheet
  */
@@ -178,14 +250,17 @@ async function streamPredictionsToSheet(
   },
   onProgress?: (percent: number) => void
 ): Promise<any> {
-  // Headers
+  // Headers - INCLUDING explanation columns
   const headers = [
     'Customer ID',
     'Churn Probability',
     'Retention Probability',
     'Risk Level',
     'Prediction Date',
-    'Status'
+    'Status',
+    'Risk Factors',
+    'Protective Factors',
+    'Explanation Summary'
   ];
   
   // Initialize worksheet with headers only
@@ -196,14 +271,24 @@ async function streamPredictionsToSheet(
     const chunk = predictions.slice(i, i + CHUNK_SIZE);
     
     // Process chunk
-    const rows = chunk.map(pred => [
-      maskCustomerId(pred.customer_id || pred.id, { strategy: options.maskingStrategy }),
-      pred.churn_probability,
-      pred.retention_probability || (1 - pred.churn_probability),
-      calculateRiskLevel(pred.churn_probability, options.riskThresholds),
-      formatDate(pred.created_at, options.locale),
-      sanitizeCellValue(pred.status)
-    ]);
+    const rows = chunk.map(pred => {
+      // Parse explanation fields safely
+      const riskFactors = parseFactorsForExport(pred.risk_factors);
+      const protectiveFactors = parseFactorsForExport(pred.protective_factors);
+      const explanationSummary = parseExplanationForExport(pred.explanation);
+      
+      return [
+        maskCustomerId(pred.customer_id || pred.id, { strategy: options.maskingStrategy }),
+        pred.churn_probability,
+        pred.retention_probability || (1 - pred.churn_probability),
+        calculateRiskLevel(pred.churn_probability, options.riskThresholds),
+        formatDate(pred.created_at, options.locale),
+        sanitizeCellValue(pred.status),
+        sanitizeCellValue(riskFactors),
+        sanitizeCellValue(protectiveFactors),
+        sanitizeCellValue(explanationSummary)
+      ];
+    });
     
     // Append directly to existing worksheet (no intermediate arrays)
     XLSX.utils.sheet_add_aoa(worksheet, rows, { origin: -1 });
@@ -225,7 +310,10 @@ async function streamPredictionsToSheet(
     { wch: 20 }, // Retention Probability
     { wch: 12 }, // Risk Level
     { wch: 20 }, // Date
-    { wch: 12 }  // Status
+    { wch: 12 }, // Status
+    { wch: 50 }, // Risk Factors
+    { wch: 50 }, // Protective Factors
+    { wch: 60 }  // Explanation Summary
   ];
   
   // Format percentage columns (batch operation)

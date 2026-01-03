@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertCircle, TrendingUp, Calendar, FileText } from 'lucide-react';
-import { parseStringArray } from '../../utils/validationUtils';
+import { parseFactors, parseExplanation } from '../../utils/validationUtils';
 import type { Prediction } from '../../types';
 
 interface PredictionDetailsProps {
@@ -8,9 +8,10 @@ interface PredictionDetailsProps {
 }
 
 export const PredictionDetails: React.FC<PredictionDetailsProps> = ({ prediction }) => {
-  // ✅ SECURE: Validate and parse factors safely
-  const riskFactors = parseStringArray(prediction.risk_factors);
-  const protectiveFactors = parseStringArray(prediction.protective_factors);
+  // ✅ SECURE: Parse factors and explanation safely
+  const riskFactors = parseFactors(prediction.risk_factors);
+  const protectiveFactors = parseFactors(prediction.protective_factors);
+  const explanation = parseExplanation(prediction.explanation);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -147,13 +148,13 @@ export const PredictionDetails: React.FC<PredictionDetailsProps> = ({ prediction
         )}
 
         {/* Explanation/Recommendation */}
-        {prediction.explanation && (
+        {explanation && explanation.summary && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <p className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
               Recommendation
             </p>
             <p className="text-sm text-blue-700 dark:text-blue-400 leading-relaxed break-words">
-              {prediction.explanation}
+              {explanation.summary}
             </p>
           </div>
         )}
@@ -161,7 +162,7 @@ export const PredictionDetails: React.FC<PredictionDetailsProps> = ({ prediction
         {/* Empty state */}
         {riskFactors.length === 0 &&
           protectiveFactors.length === 0 &&
-          !prediction.explanation && (
+          !explanation && (
             <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-8 text-center border border-gray-200 dark:border-gray-700">
               <p className="text-gray-500 dark:text-gray-400 text-sm">
                 No additional details available for this prediction.
