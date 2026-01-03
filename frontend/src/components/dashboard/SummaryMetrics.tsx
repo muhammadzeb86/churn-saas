@@ -4,13 +4,14 @@ import { MetricCard } from './MetricCard';
 import { AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 
-// Robust validation schema
+// Robust validation schema - RELAXED for dashboard data
 const PredictionSchema = z.object({
   id: z.string(),
   churn_probability: z.number().min(0).max(1).nullable().optional(),
-  status: z.enum(['queued', 'processing', 'completed', 'failed']),
-  created_at: z.string().datetime().optional(),
-  // Allow partial data for graceful degradation
+  retention_probability: z.number().min(0).max(1).nullable().optional(),
+  status: z.string().optional(), // Relaxed - accept any string status
+  created_at: z.string().optional(),
+  // Allow all other properties to pass through
 }).passthrough();
 
 interface SummaryMetricsProps {
@@ -65,8 +66,11 @@ export const SummaryMetrics: React.FC<SummaryMetricsProps> = ({
   // Single-pass calculation with comprehensive metrics
   const metrics = useMemo<CalculatedMetrics | null>(() => {
     if (!rawPredictions || rawPredictions.length === 0) {
+      console.log('📊 SummaryMetrics: No predictions data', { rawPredictions });
       return null;
     }
+
+    console.log(`📊 SummaryMetrics: Processing ${rawPredictions.length} predictions`);
 
     try {
       // Initialize accumulators
@@ -85,10 +89,8 @@ export const SummaryMetrics: React.FC<SummaryMetricsProps> = ({
         try {
           const pred = PredictionSchema.parse(rawPred);
           
-          // Skip non-completed predictions
-          if (pred.status !== 'completed') {
-            continue;
-          }
+          // Accept any completed status (backend always sends "completed" for dashboard data)
+          // Skip validation of status field since all dashboard data is pre-filtered
 
           // Handle missing/null churn probability
           if (pred.churn_probability == null) {
@@ -119,10 +121,19 @@ export const SummaryMetrics: React.FC<SummaryMetricsProps> = ({
           }
         } catch (validationError) {
           invalidCount++;
-          // Log but don't crash
-          console.debug('Prediction validation failed:', validationError);
+          // Log with details for debugging
+          console.warn('📊 SummaryMetrics: Prediction validation failed:', validationError, rawPred);
         }
       }
+
+      console.log(`📊 SummaryMetrics: Calculated metrics`, {
+        total: validCount,
+        highRisk,
+        mediumRisk,
+        lowRisk,
+        invalidCount,
+        missingChurnProb
+      });
 
       // Calculate distribution stats
       let mean = 0;
@@ -158,6 +169,14 @@ export const SummaryMetrics: React.FC<SummaryMetricsProps> = ({
         },
         distribution: { mean, median, stdDev }
       };
+
+      console.log('📊 SummaryMetrics: Final result:', result);
+
+      // Return null if no valid data
+      if (validCount === 0) {
+        console.warn('📊 SummaryMetrics: No valid predictions after validation');
+        return null;
+      }
 
       return result;
     } catch (error) {

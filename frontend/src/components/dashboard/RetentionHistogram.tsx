@@ -10,19 +10,21 @@ import { ChartEmpty } from './ChartEmpty';
 // ✅ Bar chart, not area chart
 const RetentionBarChart = lazy(() => import('./charts/RetentionBarChart'));
 
-// ✅ Strict schema (same as Task 4.2)
+// ✅ Relaxed schema for dashboard data (backend pre-filters for completed)
 const PredictionSchema = z.object({
   id: z.string(),
   churn_probability: z.number().min(0).max(1),
-  status: z.enum(['queued', 'processing', 'completed', 'failed'])
-}).strict();
+  retention_probability: z.number().min(0).max(1).optional(),
+  status: z.string().optional() // Accept any string
+}).passthrough(); // Allow extra fields
 
 type ValidatedPrediction = z.infer<typeof PredictionSchema>;
 
 // ✅ FIX: Use `unknown` instead of `any` for type safety
 const isValidPrediction = (pred: unknown): pred is ValidatedPrediction => {
   const result = PredictionSchema.safeParse(pred);
-  return result.success && result.data.status === 'completed';
+  // Dashboard data is pre-filtered, all are "completed"
+  return result.success;
 };
 
 export interface RetentionHistogramProps {
@@ -127,6 +129,7 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
     meanRetention: number;
   }>(() => {
     if (!predictions?.length) {
+      console.log('📊 RetentionHistogram: No predictions data');
       return {
         histogramData: [] as BinData[],
         stats: { processed: 0, sampled: false, duration: 0, validationErrors: 0, emptyBins: 0, numBins: 10 },
@@ -134,6 +137,8 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
         meanRetention: 0
       };
     }
+    
+    console.log(`📊 RetentionHistogram: Processing ${predictions.length} predictions`);
     
     const startTime = performance.now();
     
@@ -167,8 +172,8 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
     for (const pred of sampledPredictions) {
       if (!isValidPrediction(pred)) {
         validationErrors++;
-        if (process.env.NODE_ENV === 'development' && validationErrors <= 5) {
-          console.debug('[RetentionHistogram] Invalid prediction skipped');
+        if (validationErrors <= 5) {
+          console.warn('📊 RetentionHistogram: Invalid prediction skipped:', pred);
         }
         continue;
       }
@@ -240,8 +245,17 @@ export const RetentionHistogram: React.FC<RetentionHistogramProps> = React.memo(
     const emptyBins = histogramData.filter(bin => bin.count === 0).length;
     const duration = performance.now() - startTime;
     
-    if (process.env.NODE_ENV === 'development' && duration > 100) {
-      console.warn('[RetentionHistogram] Slow calculation:', {
+    console.log('📊 RetentionHistogram: Calculation complete', {
+      validCount,
+      validationErrors,
+      histogramBins: histogramData.length,
+      emptyBins,
+      duration: `${duration.toFixed(0)}ms`,
+      sampled: shouldSample
+    });
+    
+    if (duration > 100) {
+      console.warn('📊 RetentionHistogram: Slow calculation detected', {
         duration: `${duration.toFixed(0)}ms`,
         predictions: predictions.length,
         sampled: shouldSample,

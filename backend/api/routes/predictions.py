@@ -313,6 +313,7 @@ async def get_dashboard_data(
             df = pd.read_csv(io.StringIO(csv_content))
             
             logger.info(f"Downloaded prediction CSV: {len(df)} rows, columns: {list(df.columns)}")
+            logger.info(f"Sample row data: {df.iloc[0].to_dict() if len(df) > 0 else 'No rows'}")
             
         except Exception as s3_error:
             logger.error(f"Failed to download prediction CSV from S3: {type(s3_error).__name__}")
