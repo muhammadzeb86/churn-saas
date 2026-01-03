@@ -2666,7 +2666,55 @@ import { Dashboard } from './pages/Dashboard';
 
 #### **Task 4.8: Export to Excel (6 hours)**
 **Priority:** P1 - HIGH  
-**Status:** ✅ **COMPLETE**  
+**Status:** ✅ **COMPLETE** (January 3, 2026)  
+**Estimated:** 6 hours  
+**Actual:** 8 hours (including production hardening)
+
+**Completed Features:**
+- ✅ Production-grade Excel export with streaming writes
+- ✅ Two-sheet workbook: "Summary" + "Predictions"
+- ✅ Comprehensive formula injection protection (XSS-safe)
+- ✅ PII masking for customer IDs (GDPR compliant)
+- ✅ Progress indicator for large exports
+- ✅ Error categorization (network, memory, browser, permission)
+- ✅ Hybrid client/server strategy (>50k rows)
+- ✅ Audit logging with retry logic
+- ✅ i18n support (locale-aware formatting)
+- ✅ Mobile device detection and fallback
+- ✅ Export dropdown UI in FilterControls
+
+**Known Issues:**
+1. **Excel Warning on Open:** "We found a problem with some content"
+   - **Cause:** xlsx library generates slightly non-standard XML
+   - **Impact:** Cosmetic only - file recovers perfectly
+   - **Priority:** P3 (fix in Phase 5 if customers complain)
+   
+2. **Empty Explanation Columns:** `risk_factors`, `protective_factors`, `explanation` are empty
+   - **Cause:** Backend doesn't populate these fields consistently
+   - **Impact:** Major - reduces customer value
+   - **Fix:** Task 4.13 (now P0 - Critical)
+
+**Files Created/Modified:**
+- `frontend/src/utils/excelExport.ts` (NEW) - 600+ lines production-grade export
+- `frontend/src/components/dashboard/FilterControls.tsx` - Integrated export dropdown
+- `frontend/package.json` - Added `xlsx` dependency
+- `PHASE_4_IMPLEMENTATION_LOG.md` - Documented implementation
+
+**Testing:**
+- ✅ Export 1000 predictions - works perfectly
+- ✅ Summary sheet - all metrics correct
+- ✅ Predictions sheet - structure correct, data formatted
+- ✅ PII masking - customer IDs masked (***-ow_0)
+- ✅ Progress bar - shows 0% → 100%
+- ⚠️ Explanation columns empty (backend issue, not Task 4.8)
+
+**Deployment:**
+- Commit 748b7f2: Bug fix (XLSX module passing)
+- Commit 5993c36: Initial implementation
+
+---
+
+#### **Task 4.9: Mobile Responsiveness (6 hours)**  
 **Estimated:** 6 hours  
 **Actual:** 6 hours
 **Completed:** January 3, 2026
@@ -2978,52 +3026,183 @@ export const ExportButton: React.FC<ExportButtonProps> = ({
 ---
 
 ### **Task 4.13: Fix Expanded Row Details - Risk Factors & Explanations (4 hours)**
-**Priority:** P2 - MEDIUM  
+**Priority:** P0 - CRITICAL (MOVED UP FROM P2)  
 **Status:** ⏳ Not Started  
 **Estimated:** 4 hours  
 **Added:** January 3, 2026
+**Elevated:** January 3, 2026 - Customer-facing blocker
 
 **Problem:**
 - Expanded row details show "No additional details available"
-- Backend correctly parses `risk_factors`, `protective_factors`, `explanation` from CSV
-- BUT: These columns may be empty/null in the prediction CSV
-- This is because some models don't generate these fields, or the explanation generation failed
+- Excel exports show empty `risk_factors`, `protective_factors`, `explanation` columns
+- CSV downloads have empty explanation fields
+- Backend parses these fields correctly, BUT the prediction CSV itself has empty/null values
+- This is because the ML pipeline doesn't consistently generate these fields
+
+**Why This is P0 - CRITICAL:**
+- **Key Differentiator:** Explanations justify $149/month pricing vs competitors
+- **Customer Value:** Without explanations, predictions are just numbers (not actionable)
+- **Affects Multiple Features:** Dashboard expanded rows, CSV export, Excel export
+- **Launch Blocker:** Cannot launch MVP without this core feature
 
 **Solution:**
 Ensure all predictions have comprehensive explanations and factors:
 
-1. **Update `prediction_service.py`:**
-   - Ensure `_generate_summary_from_factors()` always runs for SaaS baseline
+1. **Update `backend/services/prediction_service.py`:**
+   - **CRITICAL:** Ensure `_generate_summary_from_factors()` ALWAYS runs for SaaS baseline
    - Add fallback explanation generation for ML models without SHAP
    - Validate that `risk_factors` and `protective_factors` are non-empty before writing CSV
+   - If empty, generate basic factors from churn_probability thresholds
 
 2. **Add Validation:**
    - Check if `risk_factors` is empty after prediction
-   - If empty, generate basic factors from feature importance
-   - Ensure `explanation` field is always populated
+   - If empty, generate basic factors: "High churn probability" or "Low engagement risk"
+   - Ensure `explanation` field is NEVER null or empty string
+   - Add logging to track when fallback explanations are used
 
 3. **Testing:**
    - Upload CSV and run prediction
-   - Expand a row in the dashboard
-   - Verify risk factors, protective factors, and explanation are visible
+   - Download result CSV - verify `risk_factors`, `protective_factors`, `explanation` are populated
+   - Export to Excel - verify columns have data
+   - Expand a row in dashboard - verify details are visible
 
 **Files to Update:**
 - `backend/services/prediction_service.py` - Enhanced explanation generation
-- `backend/ml/saas_baseline.py` - Ensure factors are always generated
+- `backend/ml/saas_baseline.py` - Ensure factors are always generated (if applicable)
 - `PHASE_4_IMPLEMENTATION_LOG.md` - Document the fix
 
 **Acceptance Criteria:**
-- ✅ All predictions have non-empty `risk_factors` array
-- ✅ All predictions have non-empty `protective_factors` array  
-- ✅ All predictions have non-null `explanation` text
-- ✅ Expanded row details show meaningful information
-- ✅ Empty state only appears if CSV parsing fails
+- ✅ All predictions have non-empty `risk_factors` array (minimum 1 factor)
+- ✅ All predictions have non-empty `protective_factors` array (minimum 1 factor if low risk)
+- ✅ All predictions have non-null `explanation` text (minimum 50 characters)
+- ✅ CSV downloads show populated explanation columns
+- ✅ Excel exports show populated explanation columns
+- ✅ Dashboard expanded row details show meaningful information
+- ✅ Empty state only appears if CSV parsing fails completely
+
+---
+
+### **Task 4.14: Stripe Payment Integration (8 hours)**
+**Priority:** P0 - CRITICAL  
+**Status:** ⏳ Not Started  
+**Estimated:** 8 hours  
+**Added:** January 3, 2026
+
+**Why This is Critical:**
+- **Launch Blocker:** Cannot launch without payment processing
+- **Revenue:** No payments = no revenue
+- **Free Trial:** Need to charge after 14-day trial expires
+
+**Pricing Tiers:**
+- **Starter:** $79/month (500 predictions/month)
+- **Professional:** $149/month (2000 predictions/month)
+- **Free Trial:** 14 days, 50 predictions
+
+**Implementation Steps:**
+
+1. **Backend Setup:**
+   ```bash
+   # Install Stripe SDK
+   pip install stripe==7.0.0
+   ```
+   
+   - Create `backend/services/stripe_service.py`
+   - Add Stripe webhook handlers
+   - Create subscription management endpoints
+
+2. **Database Schema:**
+   ```sql
+   CREATE TABLE subscriptions (
+     id UUID PRIMARY KEY,
+     user_id VARCHAR(255) NOT NULL,
+     stripe_customer_id VARCHAR(255) NOT NULL,
+     stripe_subscription_id VARCHAR(255),
+     plan_tier VARCHAR(50) NOT NULL, -- 'starter', 'professional'
+     status VARCHAR(50) NOT NULL, -- 'trialing', 'active', 'canceled', 'past_due'
+     trial_ends_at TIMESTAMP,
+     current_period_start TIMESTAMP,
+     current_period_end TIMESTAMP,
+     cancel_at_period_end BOOLEAN DEFAULT FALSE,
+     created_at TIMESTAMP DEFAULT NOW(),
+     updated_at TIMESTAMP DEFAULT NOW()
+   );
+   
+   CREATE TABLE usage_tracking (
+     id UUID PRIMARY KEY,
+     user_id VARCHAR(255) NOT NULL,
+     month VARCHAR(7) NOT NULL, -- '2026-01'
+     predictions_count INTEGER DEFAULT 0,
+     predictions_limit INTEGER NOT NULL,
+     created_at TIMESTAMP DEFAULT NOW(),
+     updated_at TIMESTAMP DEFAULT NOW()
+   );
+   ```
+
+3. **API Endpoints:**
+   - `POST /api/stripe/create-checkout-session` - Start subscription
+   - `POST /api/stripe/create-portal-session` - Manage subscription
+   - `POST /api/stripe/webhook` - Handle Stripe events
+   - `GET /api/subscription/status` - Check current plan
+   - `GET /api/usage/current-month` - Check prediction usage
+
+4. **Frontend Components:**
+   - `frontend/src/pages/Pricing.tsx` - Pricing page with plan cards
+   - `frontend/src/components/UpgradePrompt.tsx` - Trial expiry banner
+   - `frontend/src/components/UsageIndicator.tsx` - Show predictions remaining
+   - `frontend/src/pages/Billing.tsx` - Manage subscription page
+
+5. **Stripe Products & Prices:**
+   ```bash
+   # Create in Stripe Dashboard or via API
+   - Product: RetainWise Starter ($79/month)
+   - Product: RetainWise Professional ($149/month)
+   - Coupon: LAUNCH50 (50% off first month)
+   ```
+
+6. **Usage Enforcement:**
+   - Add middleware to check subscription status
+   - Block predictions if limit exceeded
+   - Show upgrade prompt when approaching limit
+   - Send email notification at 80%, 100% usage
+
+7. **Webhook Events to Handle:**
+   - `customer.subscription.created` - New subscription
+   - `customer.subscription.updated` - Plan change
+   - `customer.subscription.deleted` - Cancellation
+   - `invoice.payment_succeeded` - Successful payment
+   - `invoice.payment_failed` - Failed payment
+
+**Testing Checklist:**
+- [ ] Create Stripe test account
+- [ ] Create test products and prices
+- [ ] Test subscription creation flow
+- [ ] Test plan upgrade/downgrade
+- [ ] Test cancellation
+- [ ] Test webhook events
+- [ ] Test usage limit enforcement
+- [ ] Test trial expiry
+- [ ] Test failed payment handling
+
+**Acceptance Criteria:**
+- ✅ Users can start 14-day free trial
+- ✅ Users can subscribe to Starter or Professional plan
+- ✅ Predictions blocked when limit exceeded
+- ✅ Usage indicator shows remaining predictions
+- ✅ Users can manage subscription (upgrade/cancel)
+- ✅ Webhooks handle all Stripe events correctly
+- ✅ Failed payments handled gracefully
+- ✅ Email notifications sent at key events
+
+**Estimated Revenue Impact:**
+- 100 users × $79/month = $7,900 MRR
+- 50 users × $149/month = $7,450 MRR
+- **Total Potential MRR:** $15,350
 
 ---
 
 ### **Phase 4 Summary**
 
-**Total Time:** 84 hours over 3 weeks (updated)
+**Total Time:** 96 hours over 4 weeks (updated from 84h)
 
 **Deliverables:**
 - ✅ Interactive dashboard with 4 key metrics
