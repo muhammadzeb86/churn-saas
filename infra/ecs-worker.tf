@@ -1,6 +1,6 @@
 # ECS Worker Service for Prediction Processing
 
-# IAM Policy Document for Worker (SQS + S3 permissions)
+# IAM Policy Document for Worker (SQS + S3 + CloudWatch permissions)
 data "aws_iam_policy_document" "worker_permissions" {
   # SQS permissions for worker
   statement {
@@ -46,6 +46,24 @@ data "aws_iam_policy_document" "worker_permissions" {
     resources = [
       aws_s3_bucket.uploads.arn
     ]
+  }
+
+  # CloudWatch Metrics (for observability integration)
+  statement {
+    sid    = "AllowCloudWatchMetrics"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["RetainWise/Predictions"]
+    }
   }
 }
 

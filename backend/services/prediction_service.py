@@ -403,11 +403,15 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                     }
                 )
                 
-                await metrics.increment_counter(
-                    "FeatureValidationFailure",
-                    namespace=MetricNamespace.WORKER,
-                    dimensions={"ErrorType": "DataQualityError"}
-                )
+                # Track metric (non-blocking, graceful failure)
+                try:
+                    await metrics.increment_counter(
+                        "FeatureValidationFailure",
+                        namespace=MetricNamespace.WORKER,
+                        dimensions={"ErrorType": "DataQualityError"}
+                    )
+                except Exception as metrics_error:
+                    logger.debug(f"Failed to send CloudWatch metric: {metrics_error}")
                 
                 raise ValueError(error_msg)
             
@@ -914,12 +918,15 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             row_count=pred_metrics["rows_processed"]
         )
         
-        # Record CloudWatch metrics (with regression detection)
-        cloudwatch_metrics.record_prediction_duration(
-            duration_ms=overall_duration_ms,
-            row_count=pred_metrics["rows_processed"],
-            model_type="saas_baseline"  # or detect from pred_metrics
-        )
+        # Record CloudWatch metrics (with regression detection) - non-blocking
+        try:
+            cloudwatch_metrics.record_prediction_duration(
+                duration_ms=overall_duration_ms,
+                row_count=pred_metrics["rows_processed"],
+                model_type="saas_baseline"  # or detect from pred_metrics
+            )
+        except Exception as metrics_error:
+            logger.debug(f"Failed to send CloudWatch metric: {metrics_error}")
         
         # Estimate and track costs
         estimated_cost = cost_tracker.estimate_prediction_cost(
@@ -950,11 +957,14 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             upload_id=upload_id
         )
         
-        # Record error metric in CloudWatch
-        cloudwatch_metrics.record_error(
-            error_type=type(e).__name__,
-            operation="process_prediction"
-        )
+        # Record error metric in CloudWatch - non-blocking
+        try:
+            cloudwatch_metrics.record_error(
+                error_type=type(e).__name__,
+                operation="process_prediction"
+            )
+        except Exception as metrics_error:
+            logger.debug(f"Failed to send CloudWatch error metric: {metrics_error}")
         
         logger.error(
             f"Prediction processing failed: {str(e)}",
