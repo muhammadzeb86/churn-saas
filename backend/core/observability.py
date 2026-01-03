@@ -306,6 +306,19 @@ class CloudWatchMetrics:
             's3_download_ms': 50
         }
     
+    def _safe_put_metric(self, **kwargs):
+        """
+        Safely call CloudWatch put_metric_data with error handling.
+        Metrics should NEVER block business operations.
+        """
+        try:
+            self.cloudwatch.put_metric_data(**kwargs)
+        except Exception as e:
+            # Log but don't crash - metrics are nice-to-have, not critical
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Failed to send CloudWatch metric: {e}")
+    
     def record_prediction_duration(
         self, 
         duration_ms: float, 
@@ -328,7 +341,7 @@ class CloudWatchMetrics:
         - Throughput (predictions/minute)
         """
         # Record metric
-        self.cloudwatch.put_metric_data(
+        self._safe_put_metric(
             Namespace=self.namespace,
             MetricData=[
                 {
@@ -371,7 +384,7 @@ class CloudWatchMetrics:
         - If error_count > 10 in 5 minutes → Alert
         - If error_rate > 5% → Alert
         """
-        self.cloudwatch.put_metric_data(
+        self._safe_put_metric(
             Namespace=self.namespace,
             MetricData=[
                 {
@@ -405,7 +418,7 @@ class CloudWatchMetrics:
         - S3 usage > 100GB (storage costs)
         - Unusual spike (10x normal)
         """
-        self.cloudwatch.put_metric_data(
+        self._safe_put_metric(
             Namespace=self.namespace,
             MetricData=[
                 {
