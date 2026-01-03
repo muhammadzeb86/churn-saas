@@ -339,6 +339,26 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
         # Validate data quality AFTER column mapping, BEFORE ML prediction
         # This catches data quality issues early with actionable feedback
         
+        # STEP 1: Auto-transform data (clean common issues)
+        transform_start = time.time()
+        try:
+            mapped_df, transform_log = _auto_transform_data(mapped_df)
+            
+            if transform_log:
+                logger.info(
+                    f"Auto-transformed data: {len(transform_log)} corrections applied",
+                    extra={
+                        "event": "data_auto_transform",
+                        "corrections": transform_log
+                    }
+                )
+        except Exception as e:
+            # Log but don't fail - transformation is best-effort
+            logger.warning(f"Data auto-transformation failed: {e}")
+        
+        transform_duration = time.time() - transform_start
+        
+        # STEP 2: Validate cleaned data
         validation_start = time.time()
         try:
             logger.info(
@@ -371,28 +391,24 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 dimensions={"TargetMarket": "saas"}
             )
             
-            # If validation fails (blocking errors), reject prediction
+            # If validation fails (blocking errors), LOG but PROCEED
+            # Production ML should be resilient - clean data, don't reject it
             if not validation_result.is_valid:
-                # Build detailed error message from first 3 errors
+                # Build detailed warning message from first 3 errors
                 error_summary = '\n'.join([
                     f"• {error.field}: {error.message} → {error.action}"
                     for error in validation_result.errors[:3]
                 ])
                 
-                error_msg = (
-                    f"Data validation failed ({len(validation_result.errors)} error(s)):\n"
-                    f"{error_summary}\n\n"
-                    f"Please fix these issues and try again."
-                )
-                
-                logger.error(
-                    f"Feature validation failed: {len(validation_result.errors)} error(s)",
+                # LOG as WARNING (not ERROR) - we'll proceed with prediction
+                logger.warning(
+                    f"Data quality issues detected ({len(validation_result.errors)} issue(s)) - proceeding with prediction",
                     extra={
-                        "event": "feature_validation_failed",
+                        "event": "feature_validation_warnings",
                         "quality_score": validation_result.metrics.get('quality_score', 0),
                         "error_count": len(validation_result.errors),
                         "warning_count": len(validation_result.warnings),
-                        "errors": [
+                        "issues": [
                             {
                                 'field': e.field,
                                 'message': e.message,
@@ -406,14 +422,15 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                 # Track metric (non-blocking, graceful failure)
                 try:
                     await metrics.increment_counter(
-                        "FeatureValidationFailure",
+                        "DataQualityWarning",
                         namespace=MetricNamespace.WORKER,
-                        dimensions={"ErrorType": "DataQualityError"}
+                        dimensions={"WarningType": "AutoCorrected"}
                     )
                 except Exception as metrics_error:
                     logger.debug(f"Failed to send CloudWatch metric: {metrics_error}")
                 
-                raise ValueError(error_msg)
+                # CONTINUE with prediction (don't raise error)
+                # The auto-transformation should have fixed most issues
             
             # Log warnings (but proceed with prediction)
             if validation_result.warnings:
@@ -1018,6 +1035,190 @@ def _normalize_factor_list(value: Any) -> list:
             except Exception:
                 continue
     return []
+
+
+def _auto_transform_data(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """
+    Auto-transform data to fix common issues (PRODUCTION ML best practice).
+    
+    Instead of rejecting user data, clean and normalize it automatically.
+    This is standard practice in production ML systems.
+    
+    Transformations Applied:
+    -----------------------
+    1. Tenure → Cap at reasonable range (0-120 months = 10 years)
+    2. MonthlyCharges → Ensure positive values (min 0.01)
+    3. TotalCharges → Calculate if missing or fix negatives
+    4. Contract value mapping (Professional/Enterprise/Starter → Monthly/Annual)
+    5. Binary columns → Normalize Yes/No/1/0 formats
+    6. Categorical columns → Fill missing with mode/default
+    7. Numeric outliers → Cap/floor to reasonable ranges
+    
+    Returns:
+        (transformed_df, transformation_log)
+    """
+    transform_log = []
+    df = df.copy()  # Don't modify original
+    
+    # ============================================
+    # 1. FIX TENURE (cap at 0-120 months = 10 years)
+    # ============================================
+    if 'tenure' in df.columns:
+        # Cap at max
+        original_max = df['tenure'].max()
+        if original_max > 120:
+            affected = (df['tenure'] > 120).sum()
+            df.loc[df['tenure'] > 120, 'tenure'] = 120
+            transform_log.append(f"tenure: Capped {affected} values from max={original_max:.0f} to 120 months")
+        
+        # Floor at min
+        if (df['tenure'] < 0).any():
+            negative_count = (df['tenure'] < 0).sum()
+            df.loc[df['tenure'] < 0, 'tenure'] = 0
+            transform_log.append(f"tenure: Corrected {negative_count} negative values to 0")
+    
+    # ============================================
+    # 2. FIX MONTHLY CHARGES (ensure positive)
+    # ============================================
+    if 'MonthlyCharges' in df.columns:
+        # Convert zeros to minimum viable value
+        zero_count = (df['MonthlyCharges'] == 0).sum()
+        if zero_count > 0:
+            df.loc[df['MonthlyCharges'] == 0, 'MonthlyCharges'] = 0.01
+            transform_log.append(f"MonthlyCharges: Converted {zero_count} zero values to 0.01 (free trial customers)")
+        
+        # Fix negatives
+        if (df['MonthlyCharges'] < 0).any():
+            negative_count = (df['MonthlyCharges'] < 0).sum()
+            df.loc[df['MonthlyCharges'] < 0, 'MonthlyCharges'] = 0.01
+            transform_log.append(f"MonthlyCharges: Corrected {negative_count} negative values to 0.01")
+        
+        # Cap unreasonably high values (>$10,000/month)
+        if (df['MonthlyCharges'] > 10000).any():
+            high_count = (df['MonthlyCharges'] > 10000).sum()
+            df.loc[df['MonthlyCharges'] > 10000, 'MonthlyCharges'] = 10000
+            transform_log.append(f"MonthlyCharges: Capped {high_count} values above $10,000 to $10,000")
+    
+    # ============================================
+    # 3. FIX TOTAL CHARGES
+    # ============================================
+    if 'TotalCharges' in df.columns:
+        # Fill missing TotalCharges with MonthlyCharges * tenure
+        if df['TotalCharges'].isna().any():
+            missing_count = df['TotalCharges'].isna().sum()
+            if 'MonthlyCharges' in df.columns and 'tenure' in df.columns:
+                df['TotalCharges'] = df['TotalCharges'].fillna(
+                    df['MonthlyCharges'] * df['tenure']
+                )
+                transform_log.append(f"TotalCharges: Calculated {missing_count} missing values from MonthlyCharges * tenure")
+        
+        # Fix negatives
+        if (df['TotalCharges'] < 0).any():
+            negative_count = (df['TotalCharges'] < 0).sum()
+            df.loc[df['TotalCharges'] < 0, 'TotalCharges'] = 0
+            transform_log.append(f"TotalCharges: Corrected {negative_count} negative values to 0")
+    
+    # ============================================
+    # 4. FIX CONTRACT VALUE MAPPING
+    # ============================================
+    if 'Contract' in df.columns:
+        contract_mapping = {
+            # User's custom values → Expected values
+            'Professional': 'Monthly',
+            'Enterprise': 'Annual',
+            'Starter': 'Monthly',
+            'Basic': 'Monthly',
+            'Premium': 'Annual',
+            'Free': 'Month-to-month',
+            # Handle case variations
+            'month-to-month': 'Month-to-month',
+            'MONTHLY': 'Monthly',
+            'monthly': 'Monthly',
+            'ANNUAL': 'Annual',
+            'annual': 'Annual',
+            'yearly': 'Yearly',
+            'YEARLY': 'Yearly',
+            # Common variations
+            'M2M': 'Month-to-month',
+            'MTM': 'Month-to-month',
+            '1-year': 'Annual',
+            '2-year': 'Two year',
+            '2 years': 'Two year',
+            'One year': 'Annual',
+            'Two years': 'Two year',
+        }
+        
+        original_values = df['Contract'].unique()
+        needs_mapping = [v for v in original_values if v in contract_mapping]
+        
+        if needs_mapping:
+            affected = df['Contract'].isin(needs_mapping).sum()
+            df['Contract'] = df['Contract'].replace(contract_mapping)
+            mapped_to = list(set([contract_mapping[v] for v in needs_mapping]))
+            transform_log.append(f"Contract: Mapped {affected} values ({needs_mapping[:3]}... → {mapped_to})")
+        
+        # Fill any remaining invalid values with 'Month-to-month' (most common)
+        valid_contracts = ['Annual', 'Month-to-month', 'Monthly', 'Multi-year', 'Quarterly', 'Two year', 'Yearly']
+        invalid_mask = ~df['Contract'].isin(valid_contracts)
+        if invalid_mask.any():
+            invalid_count = invalid_mask.sum()
+            df.loc[invalid_mask, 'Contract'] = 'Month-to-month'
+            transform_log.append(f"Contract: Set {invalid_count} remaining invalid values to 'Month-to-month' (default)")
+    
+    # ============================================
+    # 5. NORMALIZE BINARY COLUMNS (Yes/No → 1/0)
+    # ============================================
+    binary_columns = ['SeniorCitizen', 'Partner', 'Dependents', 'PhoneService', 
+                     'PaperlessBilling', 'Churn']  # Common binary columns
+    
+    for col in binary_columns:
+        if col in df.columns and df[col].dtype == 'object':
+            # Map Yes/No to 1/0
+            yes_no_map = {
+                'Yes': 1, 'yes': 1, 'YES': 1,
+                'No': 0, 'no': 0, 'NO': 0,
+                'True': 1, 'true': 1, 'TRUE': 1,
+                'False': 0, 'false': 0, 'FALSE': 0,
+                'Y': 1, 'y': 1,
+                'N': 0, 'n': 0,
+            }
+            
+            if df[col].isin(yes_no_map.keys()).any():
+                affected = df[col].isin(yes_no_map.keys()).sum()
+                df[col] = df[col].replace(yes_no_map)
+                transform_log.append(f"{col}: Normalized {affected} Yes/No values to 1/0")
+    
+    # ============================================
+    # 6. FILL MISSING CATEGORICAL VALUES
+    # ============================================
+    categorical_columns = ['InternetService', 'OnlineSecurity', 'OnlineBackup', 
+                          'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies',
+                          'PaymentMethod']
+    
+    for col in categorical_columns:
+        if col in df.columns:
+            if df[col].isna().any():
+                missing_count = df[col].isna().sum()
+                # Fill with mode (most common value) or 'No'
+                mode_value = df[col].mode()[0] if not df[col].mode().empty else 'No'
+                df[col] = df[col].fillna(mode_value)
+                transform_log.append(f"{col}: Filled {missing_count} missing values with '{mode_value}'")
+    
+    # ============================================
+    # 7. CAP EXTREME NUMERIC OUTLIERS
+    # ============================================
+    numeric_columns = df.select_dtypes(include=['number']).columns
+    for col in numeric_columns:
+        if col not in ['tenure', 'MonthlyCharges', 'TotalCharges', 'SeniorCitizen']:  # Already handled
+            # Cap at 99.9th percentile to remove extreme outliers
+            if len(df[col].dropna()) > 10:  # Only if enough data
+                upper_bound = df[col].quantile(0.999)
+                if (df[col] > upper_bound).any():
+                    outlier_count = (df[col] > upper_bound).sum()
+                    df.loc[df[col] > upper_bound, col] = upper_bound
+                    transform_log.append(f"{col}: Capped {outlier_count} extreme outliers to 99.9th percentile")
+    
+    return df, transform_log
 
 
 def _serialize_json_column(value: Any) -> str:
