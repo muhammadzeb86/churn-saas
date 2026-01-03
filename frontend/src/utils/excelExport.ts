@@ -397,7 +397,7 @@ export async function exportToExcel(
     // Sheet 1: Summary
     if (includeSummary) {
       onProgress?.(20);
-      const summarySheet = createSummarySheet(predictions, riskThresholds, locale, modelVersion);
+      const summarySheet = createSummarySheet(XLSX, predictions, riskThresholds, locale, modelVersion);
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
     }
     
@@ -463,6 +463,7 @@ export async function exportToExcel(
  * Create summary sheet
  */
 function createSummarySheet(
+  XLSX: any,
   predictions: Prediction[],
   thresholds: { high: number; medium: number },
   locale: string,
@@ -493,7 +494,6 @@ function createSummarySheet(
     ['Privacy Notice', 'Customer data has been masked per GDPR requirements']
   ];
   
-  const XLSX = (window as any).XLSX;
   const worksheet = XLSX.utils.aoa_to_sheet(data);
   
   worksheet['!cols'] = [{ wch: 40 }, { wch: 25 }];
