@@ -4,11 +4,13 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { SummaryMetrics } from '../components/dashboard/SummaryMetrics';
 import { RiskDistributionChart } from '../components/dashboard/RiskDistributionChart';
 import { RetentionHistogram } from '../components/dashboard/RetentionHistogram';
+import { FilterControls } from '../components/dashboard/FilterControls';
 import { Prediction } from '../types';
 import { predictionsAPI } from '../services/api';
 
 const Dashboard: React.FC = () => {
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [allPredictions, setAllPredictions] = useState<Prediction[]>([]);
+  const [filteredPredictions, setFilteredPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -22,13 +24,14 @@ const Dashboard: React.FC = () => {
       const response = await predictionsAPI.getPredictions();
       
       // API returns { predictions: [...] }
-      const predictionsData = response.data?.predictions || [];
-      setPredictions(predictionsData);
+      const predictionsData = response.data?.predictions || response.data || [];
+      setAllPredictions(predictionsData);
+      setFilteredPredictions(predictionsData); // Initially show all
       
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load data');
       setError(error);
-      console.error('Loading failed:', error.message);
+      console.error('Loading failed:', error);
     } finally {
       setIsLoading(false);
     }
@@ -37,6 +40,16 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     loadPredictions();
   }, [loadPredictions]);
+
+  // Handle filtered data from FilterControls
+  const handleFilteredDataChange = useCallback((filtered: Prediction[], metrics: any) => {
+    setFilteredPredictions(filtered);
+    
+    // Log performance warning if filtering is slow
+    if (metrics.duration > 100) {
+      console.warn(`Filtering took ${metrics.duration.toFixed(0)}ms for ${metrics.originalCount} items`);
+    }
+  }, []);
 
   return (
     <ErrorBoundary
@@ -55,13 +68,21 @@ const Dashboard: React.FC = () => {
         </header>
 
         <div className="space-y-6">
+          {/* Filter Controls */}
+          <FilterControls
+            predictions={allPredictions}
+            onFilteredDataChange={handleFilteredDataChange}
+            highRiskThreshold={0.7}
+            mediumRiskThreshold={0.4}
+          />
+
           {/* Summary Metrics with its own error boundary */}
           <ErrorBoundary 
             fallback={<div className="text-red-600 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">Metrics unavailable. Please refresh the page.</div>}
             onError={(error) => console.error('Metrics error:', error)}
           >
             <SummaryMetrics
-              predictions={predictions}
+              predictions={filteredPredictions}
               isLoading={isLoading}
               error={error}
               modelVersion="v2.1.4"
@@ -74,7 +95,7 @@ const Dashboard: React.FC = () => {
             onError={(error) => console.error('Risk chart error:', error)}
           >
             <RiskDistributionChart
-              predictions={predictions}
+              predictions={filteredPredictions}
               isLoading={isLoading}
               error={error}
               modelMetadata={{
@@ -91,7 +112,7 @@ const Dashboard: React.FC = () => {
             onError={(error) => console.error('Retention histogram error:', error)}
           >
             <RetentionHistogram
-              predictions={predictions}
+              predictions={filteredPredictions}
               isLoading={isLoading}
               error={error}
               modelMetadata={{
@@ -104,14 +125,14 @@ const Dashboard: React.FC = () => {
           </ErrorBoundary>
 
           {/* Placeholder for future components */}
-          {predictions.length > 0 && (
+          {filteredPredictions.length > 0 && (
             <div className="text-center text-gray-500 dark:text-gray-400 py-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
               <p className="mb-2">📊 More visualizations coming soon...</p>
               <p className="text-sm">
                 Next: Trend Analysis & Time Series Predictions
               </p>
               <p className="text-xs mt-2 text-gray-400">
-                Phase 4 - Task 4.4 & 4.5
+                Phase 4 - Tasks 4.5+
               </p>
             </div>
           )}
