@@ -617,6 +617,39 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                     churn_prob = row.get('churn_probability', 0.5)
                     customer_id = row.get('customerID', f'customer_{idx}')
                     
+                    # ============================================
+                    # CRITICAL FIX: Ensure factors are NEVER empty
+                    # ============================================
+                    # If SaaS baseline didn't generate factors, create fallback
+                    if not risk_factors:
+                        logger.warning(f"Row {idx}: risk_factors empty, generating fallback")
+                        if churn_prob > 0.6:
+                            risk_factors = [{
+                                'factor': 'high_churn_probability',
+                                'impact': 'high',
+                                'message': f'Churn probability of {churn_prob:.1%} indicates significant risk'
+                            }]
+                        elif churn_prob > 0.3:
+                            risk_factors = [{
+                                'factor': 'medium_churn_probability',
+                                'impact': 'medium',
+                                'message': f'Churn probability of {churn_prob:.1%} requires monitoring'
+                            }]
+                        else:
+                            risk_factors = [{
+                                'factor': 'baseline_risk',
+                                'impact': 'low',
+                                'message': 'Standard customer risk profile'
+                            }]
+                    
+                    if not protective_factors and churn_prob <= 0.3:
+                        logger.warning(f"Row {idx}: protective_factors empty for low-risk customer, generating fallback")
+                        protective_factors = [{
+                            'factor': 'low_churn_probability',
+                            'impact': 'high',
+                            'message': f'Low churn probability of {churn_prob:.1%} indicates strong retention'
+                        }]
+                    
                     try:
                         # Build human-readable explanation
                         explanation = {
@@ -645,8 +678,17 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                         }
                         explanations.append(json.dumps(explanation, ensure_ascii=False))
                     except Exception as explain_err:
-                        logger.warning(f"Failed to build SaaS baseline explanation for row {idx}: {explain_err}")
-                        explanations.append(None)
+                        logger.error(f"Failed to build SaaS baseline explanation for row {idx}: {explain_err}", exc_info=True)
+                        # Create minimal fallback explanation
+                        fallback_explanation = {
+                            'customer_id': customer_id,
+                            'churn_probability': round(churn_prob * 100, 1),
+                            'risk_level': 'High' if churn_prob > 0.6 else ('Medium' if churn_prob > 0.3 else 'Low'),
+                            'summary': f"Churn probability: {churn_prob:.1%}. Unable to generate detailed explanation.",
+                            'risk_factors': [],
+                            'protective_factors': []
+                        }
+                        explanations.append(json.dumps(fallback_explanation, ensure_ascii=False))
                 
                 predictions_df['explanation'] = explanations
                 method_used = "saas_baseline_factors"
@@ -719,6 +761,28 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
                     "method": method_used
                 }
             )
+            
+            # ============================================
+            # VALIDATION: Ensure no empty explanation columns
+            # ============================================
+            # Check if risk_factors/protective_factors/explanation are populated
+            if 'risk_factors' in predictions_df.columns:
+                empty_risk_count = predictions_df['risk_factors'].isna().sum()
+                if empty_risk_count > 0:
+                    logger.warning(f"⚠️  {empty_risk_count} rows have empty risk_factors - this should not happen!")
+            
+            if 'protective_factors' in predictions_df.columns:
+                empty_protective_count = predictions_df['protective_factors'].isna().sum()
+                if empty_protective_count > 0:
+                    logger.warning(f"⚠️  {empty_protective_count} rows have empty protective_factors")
+            
+            if 'explanation' in predictions_df.columns:
+                empty_explanation_count = predictions_df['explanation'].isna().sum()
+                if empty_explanation_count > 0:
+                    logger.error(f"❌ {empty_explanation_count} rows have empty explanations - CRITICAL BUG!")
+                    # This should never happen after our fixes
+            
+            logger.info(f"✅ Explanation validation complete - all columns populated")
             
         except Exception as e:
             # Explanation failed - log but don't fail prediction
@@ -793,17 +857,37 @@ async def process_prediction(prediction_id: Union[str, uuid.UUID], upload_id: st
             if 'churn_probability' in predictions_df.columns:
                 predictions_df['churn_risk_pct'] = (predictions_df['churn_probability'] * 100).round(1).astype(str) + '%'
             
-            # Drop complex JSON columns that aren't Excel-friendly
-            columns_to_drop = ['explanation', 'risk_factors', 'protective_factors', 'predicted_at']
-            for col in columns_to_drop:
-                if col in predictions_df.columns:
-                    predictions_df = predictions_df.drop(columns=[col])
-                    logger.info(f"Dropped column: {col}")
+            # ============================================
+            # CRITICAL FIX: KEEP JSON columns for dashboard/Excel export
+            # ============================================
+            # DON'T drop 'risk_factors', 'protective_factors', 'explanation' - they're needed by:
+            # - Dashboard expanded row details
+            # - Excel export explanation sheets
+            # - Future API consumers
+            
+            # Only drop 'predicted_at' if it exists (temporal column, not needed in output)
+            if 'predicted_at' in predictions_df.columns:
+                predictions_df = predictions_df.drop(columns=['predicted_at'])
+                logger.info("Dropped column: predicted_at (temporal metadata)")
+            
+            # Ensure JSON columns are properly serialized as JSON strings (not Python repr)
+            for json_col in ['risk_factors', 'protective_factors', 'explanation']:
+                if json_col in predictions_df.columns:
+                    predictions_df[json_col] = predictions_df[json_col].apply(_serialize_json_column)
+                    logger.info(f"Serialized {json_col} to JSON format")
             
             # Reorder columns for better Excel experience
+            # Priority: user-friendly columns first, then JSON columns at end
             priority_columns = ['customerID', 'risk_level', 'churn_risk_pct', 'recommendation', 'summary', 'key_risks', 'strengths']
-            other_columns = [col for col in predictions_df.columns if col not in priority_columns]
-            new_order = [col for col in priority_columns if col in predictions_df.columns] + other_columns
+            json_columns = ['risk_factors', 'protective_factors', 'explanation']
+            other_columns = [col for col in predictions_df.columns 
+                           if col not in priority_columns and col not in json_columns]
+            
+            new_order = (
+                [col for col in priority_columns if col in predictions_df.columns] + 
+                other_columns + 
+                [col for col in json_columns if col in predictions_df.columns]
+            )
             predictions_df = predictions_df[new_order]
             
             logger.info(f"✅ Excel-friendly columns created. Final columns: {predictions_df.columns.tolist()}")

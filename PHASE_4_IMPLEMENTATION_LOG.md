@@ -2,7 +2,180 @@
 
 **Created:** January 2, 2026  
 **Status:** 🚧 In Progress  
-**Current Task:** 4.1 Summary Metrics Card
+**Current Task:** 4.13 Fix Explanations (P0 - CRITICAL)
+
+---
+
+## Task 4.13: Fix Expanded Row Details - Risk Factors & Explanations
+
+**Status:** 🚧 **IN PROGRESS**  
+**Started:** January 3, 2026  
+**Priority:** P0 - CRITICAL (Elevated from P2)  
+**Estimated:** 4 hours
+
+### Problem Statement
+
+**User Report (Screenshots):**
+- ✅ Excel export works - file downloads successfully
+- ✅ Summary sheet populated with correct metrics
+- ✅ Predictions sheet structure correct
+- ❌ Risk Factors, Protective Factors, Explanation columns are EMPTY
+- ❌ Dashboard expanded row details show "No additional details available"
+
+**Impact:**
+- **Customer Value:** Without explanations, predictions are just numbers (not actionable)
+- **Pricing Justification:** $149/month is hard to justify without this key differentiator
+- **Launch Blocker:** Cannot launch MVP without explanations working
+
+### Root Cause Analysis
+
+**Investigation:** Analyzed `backend/services/prediction_service.py` (lines 797-800)
+
+**Found:**
+```python
+# BROKEN CODE (Lines 797-800):
+columns_to_drop = ['explanation', 'risk_factors', 'protective_factors', 'predicted_at']
+for col in columns_to_drop:
+    if col in predictions_df.columns:
+        predictions_df = predictions_df.drop(columns=[col])
+```
+
+**Why this was broken:**
+1. Code GENERATES `explanation`, `risk_factors`, `protective_factors` correctly
+2. But then DROPS them before writing to CSV
+3. Reasoning was "Excel-friendly" output, but it removed critical data
+4. Dashboard and Excel export need these columns to show detailed explanations
+
+**Secondary Issue:** No validation to ensure factors are never empty (fallback logic missing)
+
+### Implementation Plan
+
+**Step 1: Keep JSON Columns in CSV** ✅ COMPLETE
+- Changed lines 797-823 to KEEP `risk_factors`, `protective_factors`, `explanation`
+- Only drop `predicted_at` (temporal metadata, not needed)
+- Reorder columns: user-friendly first, JSON columns at end
+- Ensure proper JSON serialization with `_serialize_json_column()`
+
+**Step 2: Add Fallback Logic for Empty Factors** ✅ COMPLETE
+- Added validation at lines 619-653
+- If `risk_factors` empty, generate fallback based on churn_probability
+- If `protective_factors` empty for low-risk customers, generate fallback
+- If explanation generation fails, create minimal fallback instead of `None`
+
+**Step 3: Add Validation Logging** ✅ COMPLETE
+- Added post-generation validation at lines 721-741
+- Log warnings if any rows have empty factors/explanations
+- This helps diagnose issues in production logs
+
+### Code Changes
+
+**File:** `backend/services/prediction_service.py`
+
+**Change 1: Keep JSON Columns (Lines 797-823)**
+```python
+# FIXED CODE:
+# DON'T drop 'risk_factors', 'protective_factors', 'explanation' - they're needed by:
+# - Dashboard expanded row details
+# - Excel export explanation sheets
+# - Future API consumers
+
+# Only drop 'predicted_at' if it exists
+if 'predicted_at' in predictions_df.columns:
+    predictions_df = predictions_df.drop(columns=['predicted_at'])
+
+# Ensure JSON columns are properly serialized
+for json_col in ['risk_factors', 'protective_factors', 'explanation']:
+    if json_col in predictions_df.columns:
+        predictions_df[json_col] = predictions_df[json_col].apply(_serialize_json_column)
+```
+
+**Change 2: Fallback for Empty Factors (Lines 619-653)**
+```python
+# If SaaS baseline didn't generate factors, create fallback
+if not risk_factors:
+    if churn_prob > 0.6:
+        risk_factors = [{
+            'factor': 'high_churn_probability',
+            'impact': 'high',
+            'message': f'Churn probability of {churn_prob:.1%} indicates significant risk'
+        }]
+    # ... (medium/low risk fallbacks)
+
+if not protective_factors and churn_prob <= 0.3:
+    protective_factors = [{
+        'factor': 'low_churn_probability',
+        'impact': 'high',
+        'message': f'Low churn probability of {churn_prob:.1%} indicates strong retention'
+    }]
+```
+
+**Change 3: Fallback Explanation (Lines 646-663)**
+```python
+except Exception as explain_err:
+    logger.error(f"Failed to build SaaS baseline explanation for row {idx}: {explain_err}", exc_info=True)
+    # Create minimal fallback explanation (never None)
+    fallback_explanation = {
+        'customer_id': customer_id,
+        'churn_probability': round(churn_prob * 100, 1),
+        'risk_level': 'High' if churn_prob > 0.6 else ('Medium' if churn_prob > 0.3 else 'Low'),
+        'summary': f"Churn probability: {churn_prob:.1%}. Unable to generate detailed explanation.",
+        'risk_factors': [],
+        'protective_factors': []
+    }
+    explanations.append(json.dumps(fallback_explanation, ensure_ascii=False))
+```
+
+**Change 4: Validation Logging (Lines 721-741)**
+```python
+# Check if risk_factors/protective_factors/explanation are populated
+if 'risk_factors' in predictions_df.columns:
+    empty_risk_count = predictions_df['risk_factors'].isna().sum()
+    if empty_risk_count > 0:
+        logger.warning(f"⚠️  {empty_risk_count} rows have empty risk_factors - this should not happen!")
+
+if 'explanation' in predictions_df.columns:
+    empty_explanation_count = predictions_df['explanation'].isna().sum()
+    if empty_explanation_count > 0:
+        logger.error(f"❌ {empty_explanation_count} rows have empty explanations - CRITICAL BUG!")
+```
+
+### Expected Results
+
+**After Deployment:**
+1. ✅ CSV downloads will have populated `risk_factors`, `protective_factors`, `explanation` columns
+2. ✅ Excel exports will show explanation data in the "Predictions" sheet
+3. ✅ Dashboard expanded row details will display:
+   - Risk Factors (with impact and description)
+   - Protective Factors (with impact and description)
+   - Explanation summary
+4. ✅ No more "No additional details available" errors
+5. ✅ Fallback explanations if SaaS baseline fails to generate factors
+
+### Testing Checklist
+
+**Post-Deployment Tests:**
+- [ ] Upload test CSV with 100 rows
+- [ ] Run prediction
+- [ ] Download CSV - verify explanation columns populated
+- [ ] Export to Excel - verify "Predictions" sheet has explanation data
+- [ ] Expand a row in dashboard - verify "Risk Factors" and "Strengths" visible
+- [ ] Test with high-risk customer (churn > 70%)
+- [ ] Test with low-risk customer (churn < 30%)
+- [ ] Check CloudWatch logs for validation warnings
+
+### Files Modified
+
+- ✅ `backend/services/prediction_service.py` (3 changes, ~80 lines modified)
+- ✅ `PHASE_4_IMPLEMENTATION_LOG.md` (this file)
+- ⏳ `ML_IMPLEMENTATION_MASTER_PLAN.md` (will update after deployment)
+
+### Next Steps
+
+1. ⏳ Commit changes
+2. ⏳ Deploy to AWS (CI/CD pipeline)
+3. ⏳ Test with user's existing prediction CSV
+4. ⏳ Verify dashboard, CSV, and Excel exports all show explanations
+5. ⏳ Mark Task 4.13 as COMPLETE
 
 ---
 
