@@ -91,7 +91,14 @@ export const predictionsAPI = {
   // ✅ CRITICAL: Add trailing slashes to match backend router structure
   // Backend router mounted at /api/predictions with routes defined as "/" 
   // FastAPI requires trailing slash for consistency, eliminates 307 redirects
+  
+  // Get prediction jobs/metadata (for Predictions page)
   getPredictions: () => api.get('/api/predictions/'),
+  
+  // Get customer-level prediction data for dashboard (Tasks 4.1-4.5)
+  getDashboardData: (limit?: number) => api.get('/api/predictions/dashboard/data', {
+    params: { limit: limit || 1000 }
+  }),
   
   getPredictionDetail: (id: string) => api.get(`/api/predictions/${id}/`),
   

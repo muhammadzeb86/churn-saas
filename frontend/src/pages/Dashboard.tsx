@@ -20,19 +20,20 @@ const Dashboard: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      // Use existing API - returns all predictions (no pagination yet)
-      // TODO: Implement server-side pagination in Phase 5 for 50k+ records
-      const response = await predictionsAPI.getPredictions();
+      // Use new dashboard data endpoint (returns customer-level predictions)
+      const response = await predictionsAPI.getDashboardData();
       
-      // API returns { predictions: [...] }
-      const predictionsData = response.data?.predictions || response.data || [];
+      // API returns { success: true, predictions: [...], metadata: {...} }
+      const predictionsData = response.data?.predictions || [];
       setAllPredictions(predictionsData);
       setFilteredPredictions(predictionsData); // Initially show all
+      
+      console.log(`✅ Loaded ${predictionsData.length} customer predictions for dashboard`);
       
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load data');
       setError(error);
-      console.error('Loading failed:', error);
+      console.error('❌ Dashboard loading failed:', error);
     } finally {
       setIsLoading(false);
     }

@@ -215,6 +215,192 @@ async def get_prediction_detail(
             detail="Unable to retrieve prediction details"
         )
 
+@router.get("/dashboard/data", response_model=Dict[str, Any])
+async def get_dashboard_data(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(1000, ge=1, le=10000, description="Maximum number of predictions to return")
+):
+    """
+    Get customer-level prediction data for dashboard visualizations
+    
+    Returns the latest completed prediction's customer data with churn scores.
+    This powers Tasks 4.1-4.5 (Summary Metrics, Charts, Table).
+    
+    Security: User can only access their own predictions
+    
+    Args:
+        current_user: Authenticated user from JWT token
+        db: Database session
+        limit: Max number of customer predictions to return (default 1000)
+        
+    Returns:
+        {
+            "success": true,
+            "predictions": [
+                {
+                    "id": "customer_id or row_id",
+                    "customer_id": "CUST_123",
+                    "churn_probability": 0.75,
+                    "retention_probability": 0.25,
+                    "risk_level": "high",
+                    "created_at": "2026-01-03T10:00:00Z",
+                    "risk_factors": ["Low usage", "No recent activity"],
+                    "protective_factors": ["Long tenure"],
+                    "explanation": "High risk due to..."
+                },
+                ...
+            ],
+            "metadata": {
+                "total_customers": 1000,
+                "prediction_id": "uuid",
+                "generated_at": "2026-01-03T10:00:00Z"
+            }
+        }
+        
+    Raises:
+        404: No completed predictions found
+        500: Unable to parse prediction data
+    """
+    import pandas as pd
+    import io
+    import json as json_lib
+    from datetime import datetime
+    
+    try:
+        # Extract user_id from JWT token
+        user_id = current_user.get("id")
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="User ID not found in authentication token"
+            )
+        
+        # Get the LATEST COMPLETED prediction for this user
+        stmt = (
+            select(Prediction)
+            .where(
+                and_(
+                    Prediction.user_id == user_id,
+                    Prediction.status == PredictionStatus.COMPLETED,
+                    Prediction.s3_output_key.isnot(None)
+                )
+            )
+            .order_by(desc(Prediction.created_at))
+            .limit(1)
+        )
+        
+        result = await db.execute(stmt)
+        latest_prediction = result.scalar_one_or_none()
+        
+        if not latest_prediction:
+            # No predictions yet - return empty data (not an error for dashboard)
+            logger.info(f"No completed predictions found for user {user_id}")
+            return {
+                "success": True,
+                "predictions": [],
+                "metadata": {
+                    "total_customers": 0,
+                    "prediction_id": None,
+                    "generated_at": None,
+                    "message": "No predictions yet. Upload a CSV to get started."
+                }
+            }
+        
+        # Download and parse the CSV from S3
+        try:
+            csv_content = s3_service.download_file_to_memory(latest_prediction.s3_output_key)
+            df = pd.read_csv(io.StringIO(csv_content))
+            
+            logger.info(f"Downloaded prediction CSV: {len(df)} rows, columns: {list(df.columns)}")
+            
+        except Exception as s3_error:
+            logger.error(f"Failed to download prediction CSV from S3: {type(s3_error).__name__}")
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to load prediction data from storage"
+            )
+        
+        # Parse CSV rows into customer prediction objects
+        customer_predictions = []
+        
+        for idx, row in df.head(limit).iterrows():
+            try:
+                # Parse risk_factors and protective_factors (they're JSON strings in CSV)
+                risk_factors = []
+                protective_factors = []
+                
+                if 'risk_factors' in df.columns and pd.notna(row.get('risk_factors')):
+                    try:
+                        risk_factors = json_lib.loads(row['risk_factors'])
+                        if not isinstance(risk_factors, list):
+                            risk_factors = []
+                    except:
+                        risk_factors = []
+                
+                if 'protective_factors' in df.columns and pd.notna(row.get('protective_factors')):
+                    try:
+                        protective_factors = json_lib.loads(row['protective_factors'])
+                        if not isinstance(protective_factors, list):
+                            protective_factors = []
+                    except:
+                        protective_factors = []
+                
+                # Determine risk level from churn probability
+                churn_prob = float(row.get('churn_probability', 0))
+                if churn_prob >= 0.7:
+                    risk_level = 'high'
+                elif churn_prob >= 0.4:
+                    risk_level = 'medium'
+                else:
+                    risk_level = 'low'
+                
+                # Build customer prediction object
+                customer_pred = {
+                    "id": str(row.get('customer_id', f'row_{idx}')),  # Use customer_id or row index
+                    "customer_id": str(row.get('customer_id', f'row_{idx}')),
+                    "churn_probability": churn_prob,
+                    "retention_probability": float(row.get('retention_probability', 1 - churn_prob)),
+                    "risk_level": risk_level,
+                    "created_at": latest_prediction.created_at.isoformat(),
+                    "risk_factors": risk_factors,
+                    "protective_factors": protective_factors,
+                    "explanation": str(row.get('explanation', '')) if pd.notna(row.get('explanation')) else None,
+                    "upload_id": str(latest_prediction.upload_id),
+                    "status": "completed",
+                    "user_id": user_id,
+                    "updated_at": latest_prediction.updated_at.isoformat()
+                }
+                
+                customer_predictions.append(customer_pred)
+                
+            except Exception as row_error:
+                logger.warning(f"Failed to parse row {idx}: {type(row_error).__name__}")
+                continue
+        
+        logger.info(f"Parsed {len(customer_predictions)} customer predictions for dashboard (user {user_id})")
+        
+        return {
+            "success": True,
+            "predictions": customer_predictions,
+            "metadata": {
+                "total_customers": len(customer_predictions),
+                "prediction_id": str(latest_prediction.id),
+                "generated_at": latest_prediction.created_at.isoformat(),
+                "rows_processed": latest_prediction.rows_processed
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        user_id = current_user.get("id", "unknown")
+        logger.error(f"Error retrieving dashboard data: {type(e).__name__} for user {user_id}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve dashboard data"
+        )
+
 @router.get("/download_predictions/{prediction_id}", response_model=DownloadUrlResponse)
 async def download_prediction_results(
     prediction_id: str,

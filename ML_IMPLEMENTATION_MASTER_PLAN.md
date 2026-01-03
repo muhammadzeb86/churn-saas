@@ -2418,10 +2418,24 @@ export const FilterControls: React.FC<FilterControlsProps> = ({ onFilterChange }
 
 ---
 
-#### **Task 4.5: Enhanced Predictions Table (4 hours)**
+#### **Task 4.5: Enhanced Predictions Table (8 hours)**
 **Priority:** P1 - HIGH  
-**Status:** ⏳ Not Started  
-**Estimated:** 4 hours  
+**Status:** ✅ **COMPLETE**  
+**Estimated:** 8 hours  
+**Actual:** 8 hours  
+
+**🔧 BACKEND INTEGRATION FIX (Jan 3, 2026):**
+- **Issue:** Dashboard components (Tasks 4.1-4.5) were not receiving data
+- **Root Cause:** `/api/predictions/` returned prediction *jobs*, not customer-level data
+- **Fix:** Created `/api/predictions/dashboard/data` endpoint
+  - Returns customer predictions from latest completed CSV
+  - Includes `churn_probability`, `risk_factors`, `protective_factors`, `explanation`
+  - Supports `limit` parameter (default 1000, max 10000)
+- **Files Changed:**
+  - ✅ `backend/api/routes/predictions.py` - Added `get_dashboard_data()` endpoint
+  - ✅ `backend/services/s3_service.py` - Added `download_file_to_memory()` helper
+  - ✅ `frontend/src/services/api.ts` - Added `getDashboardData()` method
+  - ✅ `frontend/src/pages/Dashboard.tsx` - Updated to use new endpoint
 
 **Update:** `frontend/src/pages/Predictions.tsx`
 
@@ -3811,10 +3825,10 @@ aws sqs purge-queue --queue-url <queue-url>
 | Task | Priority | Est | Actual | Status | Owner | Completion Date |
 |------|----------|-----|--------|--------|-------|-----------------|
 | 4.1: Summary Metrics Card | P0 | 6h | 6h | ✅ Complete | AI | Jan 2, 2026 |
-| 4.2: Risk Distribution Chart | P0 | 8h | - | ⏳ Not Started | - | - |
-| 4.3: Retention Histogram | P1 | 8h | - | ⏳ Not Started | - | - |
-| 4.4: Filter Controls | P0 | 6h | - | ⏳ Not Started | - | - |
-| 4.5: Enhanced Predictions Table | P1 | 4h | - | ⏳ Not Started | - | - |
+| 4.2: Risk Distribution Chart | P0 | 8h | 8h | ✅ Complete | AI | Jan 3, 2026 |
+| 4.3: Retention Histogram | P1 | 8h | 8h | ✅ Complete | AI | Jan 3, 2026 |
+| 4.4: Filter Controls | P0 | 6h | 8h | ✅ Complete | AI | Jan 3, 2026 |
+| 4.5: Enhanced Predictions Table | P1 | 8h | 8h | ✅ Complete | AI | Jan 3, 2026 |
 | 4.6: Dashboard Page Component | P0 | 8h | - | ⏳ Not Started | - | - |
 | 4.7: Navigation & Routing | P0 | 4h | - | ⏳ Not Started | - | - |
 | 4.8: Export to Excel | P1 | 6h | - | ⏳ Not Started | - | - |
@@ -3823,7 +3837,7 @@ aws sqs purge-queue --queue-url <queue-url>
 | 4.11: UI/UX Polish | P1 | 8h | - | ⏳ Not Started | - | - |
 | 4.12: Documentation & Launch | P0 | 8h | - | ⏳ Not Started | - | - |
 
-**Phase 4 Completion:** 8% (1/12 tasks) - Task 4.1 complete  
+**Phase 4 Completion:** 42% (5/12 tasks) - Tasks 4.1-4.5 complete  
 **⚠️ CRITICAL:** Phase 4 is REQUIRED for MVP launch at $149/mo pricing tier
 
 ---

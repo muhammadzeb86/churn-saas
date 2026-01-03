@@ -298,6 +298,36 @@ class S3Service:
                 "error": error_msg
             }
     
+    def download_file_to_memory(self, object_key: str) -> str:
+        """
+        Download a file from S3 directly to memory (returns content as string)
+        
+        Use this for small files (< 10MB) that need to be processed immediately.
+        For large files, use download_file() instead.
+        
+        Args:
+            object_key: S3 object key
+            
+        Returns:
+            File content as string (decoded as UTF-8)
+            
+        Raises:
+            Exception: If download fails or file doesn't exist
+        """
+        try:
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=object_key)
+            content = response['Body'].read().decode('utf-8')
+            logger.info(f"Downloaded {object_key} to memory ({len(content)} bytes)")
+            return content
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == 'NoSuchKey':
+                raise FileNotFoundError(f"File not found in S3: {object_key}")
+            else:
+                raise Exception(f"S3 download failed: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Failed to download file to memory: {str(e)}")
+    
     def file_exists(self, object_key: str) -> bool:
         """
         Check if a file exists in S3
