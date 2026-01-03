@@ -39,3 +39,65 @@
     animation: fade-in 0.3s ease-out;
   }
 }
+
+/* Mobile-responsive table styles for predictions table */
+@media (max-width: 768px) {
+  .predictions-table-container .predictions-table {
+    display: block;
+  }
+
+  .predictions-table thead {
+    display: none;
+  }
+
+  .predictions-table tbody {
+    display: block;
+  }
+
+  .predictions-table tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .dark .predictions-table tr {
+    border-color: #374151;
+  }
+
+  .predictions-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0 !important;
+    text-align: right;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .dark .predictions-table td {
+    border-bottom-color: #1f2937;
+  }
+
+  .predictions-table td:last-child {
+    border-bottom: none;
+  }
+
+  .predictions-table td::before {
+    content: attr(data-label);
+    float: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .dark .predictions-table td::before {
+    color: #9ca3af;
+  }
+
+  /* Hide expand button label on mobile */
+  .predictions-table td:first-child::before {
+    content: '';
+  }
+}

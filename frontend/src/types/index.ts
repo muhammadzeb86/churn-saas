@@ -19,8 +19,9 @@ export interface Prediction {
   updated_at: string;
   result_file_key?: string;
   explanation?: string;
-  risk_factors?: Array<{ factor: string; impact: number }>;
-  protective_factors?: Array<{ factor: string; impact: number }>;
+  risk_factors?: string | string[]; // Can be JSON string or array
+  protective_factors?: string | string[]; // Can be JSON string or array
+  model_version?: string;
 }
 
 /**
